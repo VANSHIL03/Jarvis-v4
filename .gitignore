@@ -1,0 +1,23 @@
+# Python & Environment
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv/
+env/
+venv/
+ENV/
+
+# Temporary audio files & recordings
+*.mp3
+*.wav
+
+# Logs & database
+logs/
+*.log
+*.db
+data/
+scratch/
+
+# Test scripts
+test_*.py

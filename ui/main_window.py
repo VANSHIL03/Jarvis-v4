@@ -1,0 +1,410 @@
+"""
+JARVIS v4 - Main PySide6 Arc Reactor HUD Desktop Dashboard Window
+Iron Man inspired UI with animated arc reactor, compact chat, voice input, and mic toggle.
+"""
+
+import sys
+import re
+import asyncio
+import threading
+import time
+import numpy as np
+from PySide6.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QProgressBar, QStatusBar, QSpacerItem, QSizePolicy
+)
+from PySide6.QtCore import Qt, QTimer, Signal, Slot, QSize
+from PySide6.QtGui import QFont, QColor, QIcon
+
+from ui.components.arc_reactor_widget import ArcReactorWidget
+from ui.components.chat_widget import ChatWidget
+from ui.components.sys_monitor_widget import SystemMonitorWidget
+from utils.system_monitor import SystemMonitor
+from utils.logger import logger
+
+
+class JarvisMainWindow(QMainWindow):
+    # Qt Signals for cross-thread GUI updates
+    request_finished_signal = Signal(dict)
+    request_error_signal = Signal(str)
+    voice_text_signal = Signal(str)
+    mic_level_signal = Signal(float)
+
+    def __init__(self, planner_agent=None, tts_engine=None, stt_engine=None):
+        super().__init__()
+        self.planner_agent = planner_agent
+        self.tts_engine = tts_engine
+        self.stt_engine = stt_engine
+        self.sys_monitor = SystemMonitor()
+
+        # Mic state
+        self._mic_active = True
+        self._listening = False
+
+        self.setWindowTitle("J.A.R.V.I.S. v4 - Advanced Windows Desktop Assistant")
+        self.resize(1200, 900)
+        self._init_ui()
+
+        # Connect signals
+        self.request_finished_signal.connect(self._on_request_finished)
+        self.request_error_signal.connect(self._on_request_error)
+        self.voice_text_signal.connect(self._on_voice_text)
+        self.mic_level_signal.connect(self._on_mic_level)
+
+        # Connect TTS amplitude callback to arc reactor
+        if self.tts_engine:
+            self.tts_engine.set_amplitude_callback(self.arc_reactor.set_amplitude)
+
+        # Hardware telemetry timer (1 sec)
+        self.telemetry_timer = QTimer(self)
+        self.telemetry_timer.timeout.connect(self._update_hardware_metrics)
+        self.telemetry_timer.start(1000)
+
+        # Start voice listener thread
+        if self.stt_engine:
+            self._start_voice_listener()
+
+    def _init_ui(self):
+        # Dark Futuristic Window Styling
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #060911;
+            }
+        """)
+
+        main_widget = QWidget()
+        main_layout = QVBoxLayout(main_widget)
+        main_layout.setContentsMargins(15, 10, 15, 0)
+        main_layout.setSpacing(8)
+
+        # ═══ Top Header Bar ═══
+        header_hbox = QHBoxLayout()
+        header_hbox.setSpacing(10)
+
+        title_lbl = QLabel("J.A.R.V.I.S.  v4.0  //  IRON MAN AI SYSTEM")
+        title_lbl.setStyleSheet(
+            "color: #00d2ff; font-size: 16px; font-weight: bold; "
+            "font-family: 'Consolas', monospace; background: transparent; border: none;"
+        )
+
+        # Reactive Mic Level Bar
+        mic_lbl = QLabel("MIC IN:")
+        mic_lbl.setStyleSheet("color: #00ffaa; font-family: 'Consolas', monospace; font-size: 11px; font-weight: bold;")
+
+        self.mic_level_bar = QProgressBar()
+        self.mic_level_bar.setRange(0, 100)
+        self.mic_level_bar.setValue(0)
+        self.mic_level_bar.setFixedSize(120, 14)
+        self.mic_level_bar.setTextVisible(False)
+        self.mic_level_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid rgba(0, 255, 170, 80);
+                border-radius: 4px;
+                background-color: rgba(5, 12, 24, 220);
+            }
+            QProgressBar::chunk {
+                background-color: qlineargradient(
+                    x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #00ffaa, stop:1 #00d2ff
+                );
+                border-radius: 3px;
+            }
+        """)
+
+        # Mic Toggle Button
+        self.mic_btn = QPushButton("🎤 MIC ON")
+        self.mic_btn.setFixedSize(110, 32)
+        self.mic_btn.setCursor(Qt.PointingHandCursor)
+        self._update_mic_btn_style()
+        self.mic_btn.clicked.connect(self._toggle_mic)
+
+        # Settings Button
+        settings_btn = QPushButton("⚙ SETTINGS")
+        settings_btn.setFixedSize(110, 32)
+        settings_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(0, 180, 255, 25);
+                border: 1px solid rgba(0, 180, 255, 80);
+                color: #00d2ff;
+                font-weight: bold;
+                font-size: 11px;
+                border-radius: 4px;
+                font-family: 'Consolas', monospace;
+            }
+            QPushButton:hover {
+                background-color: rgba(0, 180, 255, 60);
+            }
+        """)
+        settings_btn.clicked.connect(self._open_settings)
+
+        header_hbox.addWidget(title_lbl)
+        header_hbox.addStretch()
+        header_hbox.addWidget(mic_lbl)
+        header_hbox.addWidget(self.mic_level_bar)
+        header_hbox.addWidget(self.mic_btn)
+        header_hbox.addWidget(settings_btn)
+        main_layout.addLayout(header_hbox)
+
+        # ═══ Center: Arc Reactor ═══
+        reactor_container = QHBoxLayout()
+        reactor_container.addStretch()
+        self.arc_reactor = ArcReactorWidget()
+        self.arc_reactor.setFixedSize(420, 420)
+        reactor_container.addWidget(self.arc_reactor)
+        reactor_container.addStretch()
+        main_layout.addLayout(reactor_container, stretch=5)
+
+        # ═══ Bottom: Chat Feed ═══
+        self.chat_widget = ChatWidget()
+        self.chat_widget.user_submitted_message.connect(self._on_user_message)
+        main_layout.addWidget(self.chat_widget, stretch=3)
+
+        self.setCentralWidget(main_widget)
+
+        # ═══ Bottom Status Bar (System Metrics) ═══
+        self.sys_widget = SystemMonitorWidget()
+        self.setStatusBar(QStatusBar())
+        self.statusBar().addPermanentWidget(self.sys_widget, 1)
+        self.statusBar().setStyleSheet("QStatusBar { background: transparent; border: none; }")
+
+        # Initial Welcome Message
+        welcome_text = "Good day, Sir. Systems are online and operating at nominal efficiency."
+        self.chat_widget.append_jarvis_message(welcome_text)
+        if self.tts_engine:
+            threading.Thread(target=self.tts_engine.speak, args=(welcome_text,), daemon=True).start()
+
+    @Slot(float)
+    def _on_mic_level(self, rms: float):
+        """Updates real-time microphone level bar and animates Arc Reactor glow as user speaks."""
+        val = int(min(1.0, rms * 55.0) * 100)
+        self.mic_level_bar.setValue(val)
+        if val > 4:
+            self.arc_reactor.set_amplitude(val / 100.0)
+        elif not self.tts_engine or not self.tts_engine.is_speaking:
+            self.arc_reactor.set_amplitude(0.05)
+
+    # ─── Mic Toggle ───
+    def _toggle_mic(self):
+        self._mic_active = not self._mic_active
+        self._update_mic_btn_style()
+        if not self._mic_active:
+            self.mic_level_bar.setValue(0)
+            self.chat_widget.append_system_log("Microphone Muted.")
+        else:
+            self.chat_widget.append_system_log("Microphone Active.")
+
+    def _update_mic_btn_style(self):
+        if self._mic_active:
+            self.mic_btn.setText("🎤 MIC ON")
+            self.mic_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: rgba(0, 255, 170, 30);
+                    border: 1px solid #00ffaa;
+                    color: #00ffaa;
+                    font-weight: bold;
+                    font-size: 11px;
+                    border-radius: 4px;
+                    font-family: 'Consolas', monospace;
+                }
+                QPushButton:hover {
+                    background-color: rgba(0, 255, 170, 70);
+                }
+            """)
+        else:
+            self.mic_btn.setText("🔇 MIC OFF")
+            self.mic_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: rgba(255, 50, 80, 30);
+                    border: 1px solid #ff3250;
+                    color: #ff3250;
+                    font-weight: bold;
+                    font-size: 11px;
+                    border-radius: 4px;
+                    font-family: 'Consolas', monospace;
+                }
+                QPushButton:hover {
+                    background-color: rgba(255, 50, 80, 70);
+                }
+            """)
+
+    # ─── Voice Listener Thread ───
+    def _start_voice_listener(self):
+        """Starts continuous voice listening using Realtek Microphone Array + Faster-Whisper."""
+        def _voice_loop():
+            try:
+                import sounddevice as sd
+                import soundfile as sf
+                import tempfile
+                import os
+                import queue
+
+                SAMPLE_RATE = 16000
+                CHUNK_DURATION = 5.0  # 5 seconds chunk to capture complete long spoken commands
+                SILENCE_THRESHOLD = 0.0004
+
+                # Find Realtek Microphone Array device index
+                realtek_dev = None
+                try:
+                    for i, d in enumerate(sd.query_devices()):
+                        if d.get("max_input_channels", 0) > 0 and "realtek" in d.get("name", "").lower():
+                            realtek_dev = i
+                            logger.info(f"Selected audio input device: '{d['name']}' (Index {i})")
+                            break
+                except Exception as e:
+                    logger.warning(f"Could not query audio devices: {e}")
+
+                audio_q = queue.Queue()
+
+                def callback(indata, frames, time_info, status):
+                    # Echo Cancellation: Ignore mic input when JARVIS is speaking out loud
+                    if not self._mic_active or (self.tts_engine and self.tts_engine.is_speaking):
+                        self.mic_level_signal.emit(0.0)
+                        return
+                    rms = float(np.sqrt(np.mean(indata ** 2)))
+                    self.mic_level_signal.emit(rms)
+                    audio_q.put(indata.copy())
+
+                stream_kwargs = {
+                    "samplerate": SAMPLE_RATE,
+                    "channels": 1,
+                    "dtype": "float32",
+                    "callback": callback,
+                    "blocksize": int(SAMPLE_RATE * 0.08)  # 80ms blocks for smooth UI reaction
+                }
+                if realtek_dev is not None:
+                    stream_kwargs["device"] = realtek_dev
+
+                CHUNK_DURATION = 3.5  # 3.5s chunk for snappy voice responsiveness
+
+                with sd.InputStream(**stream_kwargs):
+                    chunk_samples = int(CHUNK_DURATION * SAMPLE_RATE)
+                    while True:
+                        collected = []
+                        total_count = 0
+                        
+                        while total_count < chunk_samples:
+                            if self.tts_engine and self.tts_engine.is_speaking:
+                                collected.clear()
+                                total_count = 0
+                                audio_q.queue.clear()
+                                time.sleep(0.1)
+                                break
+                            try:
+                                block = audio_q.get(timeout=0.1)
+                                collected.append(block)
+                                total_count += len(block)
+                            except queue.Empty:
+                                pass
+
+                        if not collected or not self._mic_active or (self.tts_engine and self.tts_engine.is_speaking):
+                            continue
+
+                        audio_data = np.concatenate(collected, axis=0).flatten()
+
+                        # Calculate RMS volume level
+                        rms = float(np.sqrt(np.mean(audio_data ** 2)))
+                        if rms < 0.001:
+                            continue
+
+                        # Gentle 2x gain boost for quiet speech without blowing up background noise
+                        audio_data = np.clip(audio_data * 2.0, -1.0, 1.0)
+
+                        # Save to temp wav file
+                        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                            tmp_path = tmp.name
+                        sf.write(tmp_path, audio_data, SAMPLE_RATE)
+
+                        # Transcribe with Faster-Whisper (CUDA)
+                        if self.stt_engine and self.stt_engine.model:
+                            text = self.stt_engine.transcribe_audio_file(tmp_path)
+                        else:
+                            try:
+                                import speech_recognition as sr
+                                recognizer = sr.Recognizer()
+                                with sr.AudioFile(tmp_path) as source:
+                                    audio = recognizer.record(source)
+                                text = recognizer.recognize_google(audio)
+                            except Exception:
+                                text = ""
+
+                        if os.path.exists(tmp_path):
+                            os.remove(tmp_path)
+
+                        text = text.strip()
+                        if text:
+                            logger.info(f"Voice transcription: '{text}'")
+                            # Clean leading wake-word if present, but process all spoken commands
+                            command = re.sub(r"^(?:jarvis|jarvas|travis|service)\s*,?\s*", "", text, flags=re.IGNORECASE).strip()
+                            command = command.lstrip(",").lstrip(".").strip()
+                            if not command:
+                                command = text
+
+                            self.voice_text_signal.emit(command)
+
+            except Exception as e:
+                logger.warning(f"Voice listener failed to start: {e}")
+
+        threading.Thread(target=_voice_loop, daemon=True).start()
+
+    @Slot(str)
+    def _on_voice_text(self, text: str):
+        """Handles transcribed voice text on the Qt main thread."""
+        if text:
+            self._on_user_message(text)
+
+    # ─── Settings ───
+    def _open_settings(self):
+        from ui.components.settings_widget import SettingsDialog
+        dialog = SettingsDialog(self)
+        dialog.exec()
+
+    # ─── Telemetry ───
+    def _update_hardware_metrics(self):
+        data = self.sys_monitor.get_full_telemetry()
+        self.sys_widget.update_metrics(data)
+
+    # ─── User Message Processing ───
+    def _on_user_message(self, text: str):
+        """Triggered when user enters text or voice command."""
+        self.chat_widget.append_user_message(text)
+        self.sys_widget.set_status(f"PROCESSING: '{text[:40]}'...")
+        if self.planner_agent:
+            def _worker_thread():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(self.planner_agent.process_user_request(text))
+                    self.request_finished_signal.emit(result)
+                except Exception as e:
+                    logger.error(f"Worker thread error: {e}")
+                    self.request_error_signal.emit(str(e))
+                finally:
+                    loop.close()
+
+            threading.Thread(target=_worker_thread, daemon=True).start()
+
+    @Slot(dict)
+    def _on_request_finished(self, result: dict):
+        speech_reply = result.get("speech_reply", "")
+        thought = result.get("thought", "")
+        exec_results = result.get("execution_results", [])
+
+        if speech_reply:
+            self.chat_widget.append_jarvis_message(speech_reply, thought=thought)
+
+        for item in exec_results:
+            log_str = f"Agent '{item.get('agent')}' executed '{item.get('action')}'"
+            self.chat_widget.append_system_log(log_str)
+
+        if speech_reply and self.tts_engine:
+            threading.Thread(target=self.tts_engine.speak, args=(speech_reply,), daemon=True).start()
+
+        self.sys_widget.set_status("SYSTEM READY")
+
+    @Slot(str)
+    def _on_request_error(self, err_msg: str):
+        self.chat_widget.append_system_log(f"Error: {err_msg}")
+        reply = f"Apologies Sir, I got stuck while attempting that process: {err_msg}. How would you like me to proceed?"
+        self.chat_widget.append_jarvis_message(reply)
+        if self.tts_engine:
+            threading.Thread(target=self.tts_engine.speak, args=(reply,), daemon=True).start()
+        self.sys_widget.set_status("ERROR")

@@ -1,0 +1,52 @@
+# JARVIS v4 - Core Requirements
+# Hardware Target: Windows 11, RTX 4050 GPU (6GB VRAM), Ryzen 7, 16GB RAM
+
+# UI Framework
+PySide6>=6.6.0
+
+# Asynchronous & Networking
+asyncio
+httpx>=0.25.0
+requests>=2.31.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Hardware & System Automation
+psutil>=5.9.0
+pywin32>=306
+pywinauto>=0.6.8
+pyautogui>=0.9.54
+screen-brightness-control>=0.17.0
+pycaw>=20230407
+pynvml>=11.5.0
+
+# Speech Recognition & Synthesis
+faster-whisper>=0.10.0
+speechrecognition>=3.10.0
+pyttsx3>=2.90
+edge-tts>=6.1.9
+sounddevice>=0.4.6
+numpy>=1.24.0
+
+# Vision & OCR
+opencv-python>=4.8.0
+pillow>=10.0.0
+easyocr>=1.7.0
+
+# Memory, Vector Database & Embeddings
+faiss-cpu>=1.7.4
+sentence-transformers>=2.2.2
+
+# Office & PDF Document Automation
+python-docx>=1.0.0
+openpyxl>=3.1.2
+python-pptx>=0.6.22
+pypdf>=3.17.0
+pdfplumber>=0.10.0
+
+# Browser Automation
+playwright>=1.40.0
+
+# Testing & Quality
+pytest>=7.4.0
+pytest-asyncio>=0.21.0

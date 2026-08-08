@@ -1,0 +1,98 @@
+"""
+JARVIS v4 - Compact Dark Neon Dialogue Feed Widget
+"""
+
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QLineEdit, QPushButton
+)
+from PySide6.QtCore import Qt, Signal
+
+
+class ChatWidget(QWidget):
+    user_submitted_message = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._init_ui()
+
+    def _init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        self.setStyleSheet("""
+            QWidget {
+                background-color: transparent;
+                color: #e0f7ff;
+            }
+            QTextEdit {
+                background-color: rgba(5, 8, 15, 200);
+                border: 1px solid rgba(0, 180, 255, 40);
+                border-radius: 6px;
+                color: #d8f3ff;
+                font-family: 'Segoe UI', sans-serif;
+                font-size: 12px;
+                padding: 8px;
+            }
+            QLineEdit {
+                background-color: rgba(10, 18, 35, 220);
+                border: 1px solid rgba(0, 180, 255, 80);
+                border-radius: 6px;
+                color: #ffffff;
+                font-size: 12px;
+                padding: 7px 10px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #00d2ff;
+            }
+            QPushButton {
+                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #00b8e6, stop:1 #0066cc);
+                border: none;
+                border-radius: 6px;
+                color: #ffffff;
+                font-weight: bold;
+                font-size: 11px;
+                padding: 7px 14px;
+            }
+            QPushButton:hover {
+                background-color: #00e5ff;
+            }
+        """)
+
+        # Dialogue Feed
+        self.text_feed = QTextEdit()
+        self.text_feed.setReadOnly(True)
+        self.text_feed.setMaximumHeight(200)
+        layout.addWidget(self.text_feed)
+
+        # Input Row
+        input_hbox = QHBoxLayout()
+        self.input_field = QLineEdit()
+        self.input_field.setPlaceholderText("Type command to JARVIS...")
+        self.input_field.returnPressed.connect(self._on_send)
+
+        self.send_btn = QPushButton("SEND")
+        self.send_btn.clicked.connect(self._on_send)
+
+        input_hbox.addWidget(self.input_field)
+        input_hbox.addWidget(self.send_btn)
+        layout.addLayout(input_hbox)
+
+    def _on_send(self):
+        text = self.input_field.text().strip()
+        if text:
+            self.append_user_message(text)
+            self.user_submitted_message.emit(text)
+            self.input_field.clear()
+
+    def append_user_message(self, message: str):
+        html = f"<div style='margin-bottom: 4px;'><b style='color: #00d2ff;'>SIR:</b> {message}</div>"
+        self.text_feed.append(html)
+
+    def append_jarvis_message(self, message: str, thought: str = ""):
+        html = f"<div style='margin-bottom: 4px;'><b style='color: #00ffaa;'>JARVIS:</b> {message}</div>"
+        self.text_feed.append(html)
+
+    def append_system_log(self, log_msg: str):
+        html = f"<div style='margin-bottom: 2px; font-size: 10px; color: #6688aa;'><i>[SYSTEM]: {log_msg}</i></div>"
+        self.text_feed.append(html)
