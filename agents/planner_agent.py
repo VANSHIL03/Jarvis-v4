@@ -379,6 +379,20 @@ class PlannerAgent:
                 "delegations": [{"agent": "windows_agent", "action": "take_screenshot", "params": {"path": "screenshot.png"}}]
             }
 
+        # Shutdown PC (English & Hinglish)
+        shutdown_keywords = [
+            "shutdown pc", "shutdown computer", "switch off my pc", "switch off pc",
+            "switch off computer", "pc shutdown", "computer shutdown", "pc band",
+            "computer band", "turn off my pc", "turn off pc", "turn off computer",
+            "power off pc", "power off computer"
+        ]
+        if any(k in clean for k in shutdown_keywords) or ("turn off" in clean and ("pc" in clean or "computer" in clean)):
+            return True, {
+                "thought": "Fast-path triggered: Closing background applications and shutting down PC.",
+                "speech_reply": f"Ji {sir}, pehle sabhi background applications ko close karke aapka PC shutdown kar raha hoon.",
+                "delegations": [{"agent": "windows_agent", "action": "shutdown_pc", "params": {}}]
+            }
+
         # Lock PC
         if any(k in clean for k in ["lock pc", "lock computer", "pc lock karo", "computer lock karo"]):
             return True, {

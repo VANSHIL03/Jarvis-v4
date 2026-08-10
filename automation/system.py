@@ -122,9 +122,26 @@ class SystemControl:
             logger.error(f"Failed to put PC to sleep: {e}")
             return False
 
+    def close_all_user_apps(self) -> bool:
+        """Closes all non-critical user background applications safely before shutdown."""
+        apps_to_close = [
+            "chrome.exe", "msedge.exe", "code.exe", "notepad.exe", "spotify.exe",
+            "discord.exe", "steam.exe", "winword.exe", "excel.exe", "powerpnt.exe",
+            "vlc.exe", "calculator.exe", "mspaint.exe"
+        ]
+        logger.info("Closing user background applications prior to system shutdown...")
+        for app in apps_to_close:
+            try:
+                subprocess.run(f"taskkill /f /im {app}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
+        return True
+
     def restart_pc(self) -> bool:
         """Restarts Windows system."""
         try:
+            self.close_all_user_apps()
+            time.sleep(1.0)
             subprocess.run("shutdown /r /t 5", shell=True)
             logger.info("System restart initiated in 5 seconds.")
             return True
@@ -133,10 +150,12 @@ class SystemControl:
             return False
 
     def shutdown_pc(self) -> bool:
-        """Shuts down Windows system."""
+        """Closes all user applications first, then initiates Windows shutdown."""
         try:
+            self.close_all_user_apps()
+            time.sleep(1.0)
             subprocess.run("shutdown /s /t 5", shell=True)
-            logger.info("System shutdown initiated in 5 seconds.")
+            logger.info("System shutdown initiated in 5 seconds after closing user applications.")
             return True
         except Exception as e:
             logger.error(f"Failed to shutdown PC: {e}")
