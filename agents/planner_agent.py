@@ -405,11 +405,11 @@ class PlannerAgent:
                 "delegations": [{"agent": "windows_agent", "action": "restart_pc", "params": {}}]
             }
 
-        # Lock PC
-        if any(k in clean for k in ["lock pc", "lock computer", "pc lock karo", "computer lock karo"]):
+        # Lock PC (English & Hinglish)
+        if any(k in clean for k in ["lock pc", "lock computer", "pc lock karo", "computer lock karo", "lock my pc", "lock the pc", "lock workstation"]):
             return True, {
                 "thought": "Fast-path triggered: Locking workstation.",
-                "speech_reply": "Ji Sir, system lock kar raha hoon.",
+                "speech_reply": f"Ji {sir}, system lock kar raha hoon.",
                 "delegations": [{"agent": "windows_agent", "action": "lock_pc", "params": {}}]
             }
 
