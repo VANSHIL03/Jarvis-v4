@@ -393,6 +393,18 @@ class PlannerAgent:
                 "delegations": [{"agent": "windows_agent", "action": "shutdown_pc", "params": {}}]
             }
 
+        # Restart PC (English & Hinglish)
+        restart_keywords = [
+            "restart pc", "restart computer", "reboot pc", "reboot computer",
+            "pc restart", "computer restart", "system restart", "restart system"
+        ]
+        if any(k in clean for k in restart_keywords):
+            return True, {
+                "thought": "Fast-path triggered: Closing background applications and restarting PC.",
+                "speech_reply": f"Ji {sir}, pehle sabhi background applications ko close karke aapka PC restart kar raha hoon.",
+                "delegations": [{"agent": "windows_agent", "action": "restart_pc", "params": {}}]
+            }
+
         # Lock PC
         if any(k in clean for k in ["lock pc", "lock computer", "pc lock karo", "computer lock karo"]):
             return True, {

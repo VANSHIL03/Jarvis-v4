@@ -138,24 +138,24 @@ class SystemControl:
         return True
 
     def restart_pc(self) -> bool:
-        """Restarts Windows system."""
+        """Restarts Windows system with forced application termination."""
         try:
             self.close_all_user_apps()
-            time.sleep(1.0)
-            subprocess.run("shutdown /r /t 5", shell=True)
-            logger.info("System restart initiated in 5 seconds.")
+            time.sleep(0.5)
+            subprocess.run("shutdown /r /f /t 3", shell=True)
+            logger.info("System restart initiated in 3 seconds (forced).")
             return True
         except Exception as e:
             logger.error(f"Failed to restart PC: {e}")
             return False
 
     def shutdown_pc(self) -> bool:
-        """Closes all user applications first, then initiates Windows shutdown."""
+        """Closes all user applications first, then initiates forced Windows shutdown."""
         try:
             self.close_all_user_apps()
-            time.sleep(1.0)
-            subprocess.run("shutdown /s /t 5", shell=True)
-            logger.info("System shutdown initiated in 5 seconds after closing user applications.")
+            time.sleep(0.5)
+            subprocess.run("shutdown /s /f /t 3", shell=True)
+            logger.info("System shutdown initiated in 3 seconds (forced).")
             return True
         except Exception as e:
             logger.error(f"Failed to shutdown PC: {e}")
