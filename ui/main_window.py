@@ -365,11 +365,35 @@ class JarvisMainWindow(QMainWindow):
         data = self.sys_monitor.get_full_telemetry()
         self.sys_widget.update_metrics(data)
 
+    def _get_salutation(self) -> str:
+        """Dynamically retrieves remembered user name or defaults to Sir."""
+        try:
+            if self.planner_agent:
+                facts = self.planner_agent.memory.get_all_facts()
+                name_fact = next((f["value_data"] for f in facts if f.get("key_name") == "user_name"), None)
+                if name_fact:
+                    first_name = name_fact.split()[0]
+                    return f"Sir {first_name}"
+        except Exception:
+            pass
+        return "Sir"
+
     # ─── User Message Processing ───
     def _on_user_message(self, text: str):
         """Triggered when user enters text or voice command."""
         self.chat_widget.append_user_message(text)
         self.sys_widget.set_status(f"PROCESSING: '{text[:40]}'...")
+
+        sir = self._get_salutation()
+        clean = text.lower()
+
+        # Instant initial voice acknowledgment for code requests
+        if "code" in clean and any(k in clean for k in ["write", "likh", "banao", "create", "generate", "give", "do"]):
+            initial_ack = f"Ji {sir}, thoda wait kijiye. Main aapka code generate karke Notepad me open kar raha hoon."
+            self.chat_widget.append_jarvis_message(initial_ack)
+            if self.tts_engine:
+                threading.Thread(target=self.tts_engine.speak, args=(initial_ack,), daemon=True).start()
+
         if self.planner_agent:
             def _worker_thread():
                 loop = asyncio.new_event_loop()

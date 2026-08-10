@@ -19,10 +19,11 @@ class LocalLLMClient:
         """Checks if local Ollama server is running."""
         for url in [self.base_url, "http://127.0.0.1:11434", "http://localhost:11434"]:
             try:
-                resp = await self.client.get(f"{url}/api/version")
-                if resp.status_code == 200:
-                    self.base_url = url
-                    return True
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    resp = await client.get(f"{url}/api/version")
+                    if resp.status_code == 200:
+                        self.base_url = url
+                        return True
             except Exception:
                 pass
         return False
@@ -62,15 +63,16 @@ class LocalLLMClient:
                 payload["system"] = system_prompt
 
         try:
-            resp = await self.client.post(endpoint, json=payload)
-            if resp.status_code == 200:
-                data = resp.json()
-                if "message" in data:
-                    return data["message"]["content"]
-                return data.get("response", "")
-            else:
-                logger.error(f"Ollama error {resp.status_code}: {resp.text}")
-                return f"Local LLM service returned status {resp.status_code}."
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(endpoint, json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if "message" in data:
+                        return data["message"]["content"]
+                    return data.get("response", "")
+                else:
+                    logger.error(f"Ollama error {resp.status_code}: {resp.text}")
+                    return f"Local LLM service returned status {resp.status_code}."
         except Exception as e:
             logger.error(f"Exception calling local LLM: {e}")
             return f"Error communicating with local AI model: {e}"
