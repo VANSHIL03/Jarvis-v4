@@ -36,9 +36,22 @@ class PlannerAgent:
         self.safety = safety_manager
         self.sub_agents = agents
 
+    def _get_user_salutation(self) -> str:
+        """Dynamically retrieves remembered user name or defaults to Sir."""
+        try:
+            facts = self.memory.get_all_facts()
+            name_fact = next((f["value_data"] for f in facts if f.get("key_name") == "user_name"), None)
+            if name_fact:
+                first_name = name_fact.split()[0]
+                return f"Sir {first_name}"
+        except Exception:
+            pass
+        return "Sir"
+
     def _fast_path_match(self, user_input: str) -> tuple[bool, Dict[str, Any]]:
         """Fast-path resolution for instant OS, application & web site automation commands."""
         clean = re.sub(r"^(?:hey\s+jarvis|hi\s+jarvis|okay\s+jarvis|ok\s+jarvis|jarvis)\s*[,:\.\-]?\s*", "", user_input.lower().strip(), flags=re.I).strip()
+        sir = self._get_user_salutation()
 
         # User Name Query (Ask Name)
         if any(phrase in clean.lower() for phrase in ["what is my name", "do you know my name", "tell me my name", "mera naam kya", "mera naam batao"]):
@@ -189,13 +202,21 @@ class PlannerAgent:
                 "delegations": [{"agent": "coding_agent", "action": "generate_code", "params": {"language": lang, "prompt": user_input}}]
             }
 
+        # YouTube website open vs song playback
+        if clean.lower() in ["youtube", "youtube kholo", "open youtube", "youtube open karo", "youtube chalao", "launch youtube"]:
+            return True, {
+                "thought": "Fast-path triggered: Opening YouTube website.",
+                "speech_reply": f"Ji {sir}, YouTube khol raha hoon.",
+                "delegations": [{"agent": "browser_agent", "action": "open_url", "params": {"url": "https://www.youtube.com"}}]
+            }
+
         # Hinglish / English YouTube search & video/music playback
         yt_keywords = ["youtube", "you tube", "youtuve", "yutube", "utube"]
         music_keywords = ["music", "song", "gana", "gaana", "geet", "video", "track", "audio"]
         is_yt_mention = any(k in clean.lower() for k in yt_keywords)
         is_music_mention = any(k in clean.lower() for k in music_keywords)
 
-        if is_yt_mention or (is_music_mention and any(k in clean.lower() for k in ["play", "chalao", "sunao", "search", "kholo", "open"])):
+        if is_yt_mention or (is_music_mention and any(k in clean.lower() for k in ["play", "chalao", "sunao", "search"])):
             term = clean
             term = re.sub(r"^(?:play|search|chalao|sunao|open|kholo|launch)\s+", "", term, flags=re.I).strip()
             term = re.sub(r"\s+(?:on|in|pe|par|p)\s+(?:youtube|you\s+tube|youtuve|yutube|utube).*$", "", term, flags=re.I).strip()
@@ -207,7 +228,7 @@ class PlannerAgent:
 
             return True, {
                 "thought": f"Fast-path triggered: Playing '{term}' on YouTube.",
-                "speech_reply": f"Ji Sir, YouTube par {term} chala raha hoon.",
+                "speech_reply": f"Ji {sir}, YouTube par {term} chala raha hoon.",
                 "delegations": [{"agent": "browser_agent", "action": "play_youtube", "params": {"search_term": term}}]
             }
 
@@ -364,6 +385,8 @@ class PlannerAgent:
             parsed_plan = {"thought": thought, "speech_reply": speech_reply, "delegations": delegations}
         else:
             # 1. Retrieve RAG memory & user facts
+            all_facts = self.memory.get_all_facts()
+            facts_str = "\n".join([f"- {f['key_name']}: {f['value_data']}" for f in all_facts]) if all_facts else "None"
             relevant_memories = self.memory.retrieve_relevant_memory(user_input, top_k=3)
             dialogue_history = self.memory.get_dialogue_context(session_id=session_id, turns=4)
 
@@ -372,7 +395,10 @@ class PlannerAgent:
             history_str = "\n".join([f"{turn['role']}: {turn['content']}" for turn in dialogue_history])
 
             full_prompt = f"""
-System Context & User Preferences:
+Known Stored Facts & User Preferences:
+{facts_str}
+
+System Context & Retrieved Memory:
 {context_str}
 
 Recent Conversation History:
