@@ -142,7 +142,7 @@ class SystemControl:
         try:
             self.close_all_user_apps()
             time.sleep(0.5)
-            subprocess.run("shutdown /r /f /t 3", shell=True)
+            os.system("shutdown /r /f /t 3")
             logger.info("System restart initiated in 3 seconds (forced).")
             return True
         except Exception as e:
@@ -154,7 +154,7 @@ class SystemControl:
         try:
             self.close_all_user_apps()
             time.sleep(0.5)
-            subprocess.run("shutdown /s /f /t 3", shell=True)
+            os.system("shutdown /s /f /t 3")
             logger.info("System shutdown initiated in 3 seconds (forced).")
             return True
         except Exception as e:

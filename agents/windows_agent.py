@@ -37,11 +37,19 @@ class WindowsAgent(BaseAgent):
             res = self.sys_control.set_brightness(level)
             return {"status": "success" if res else "error", "level": level}
 
-        elif action == "lock_pc":
+        elif action in ["shutdown_pc", "shutdown_laptop", "shutdown_system", "turn_off_pc", "turn_off_laptop"]:
+            res = self.sys_control.shutdown_pc()
+            return {"status": "success" if res else "error"}
+
+        elif action in ["restart_pc", "restart_laptop", "restart_system", "reboot_pc", "reboot_laptop"]:
+            res = self.sys_control.restart_pc()
+            return {"status": "success" if res else "error"}
+
+        elif action in ["lock_pc", "lock_laptop", "lock_system"]:
             res = self.sys_control.lock_pc()
             return {"status": "success" if res else "error"}
 
-        elif action == "sleep_pc":
+        elif action in ["sleep_pc", "sleep_laptop", "sleep_system"]:
             res = self.sys_control.sleep_pc()
             return {"status": "success" if res else "error"}
 

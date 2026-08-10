@@ -379,29 +379,31 @@ class PlannerAgent:
                 "delegations": [{"agent": "windows_agent", "action": "take_screenshot", "params": {"path": "screenshot.png"}}]
             }
 
-        # Shutdown PC (English & Hinglish)
+        # Shutdown PC / Laptop (English & Hinglish)
         shutdown_keywords = [
-            "shutdown pc", "shutdown computer", "switch off my pc", "switch off pc",
-            "switch off computer", "pc shutdown", "computer shutdown", "pc band",
-            "computer band", "turn off my pc", "turn off pc", "turn off computer",
-            "power off pc", "power off computer"
+            "shutdown pc", "shutdown computer", "shutdown laptop", "laptop shutdown",
+            "switch off my pc", "switch off pc", "switch off computer", "switch off laptop",
+            "pc shutdown", "computer shutdown", "laptop shutdown", "pc band", "computer band", "laptop band",
+            "turn off my pc", "turn off pc", "turn off computer", "turn off laptop",
+            "power off pc", "power off computer", "power off laptop"
         ]
-        if any(k in clean for k in shutdown_keywords) or ("turn off" in clean and ("pc" in clean or "computer" in clean)):
+        if any(k in clean for k in shutdown_keywords) or ("shutdown" in clean and ("pc" in clean or "laptop" in clean or "computer" in clean)) or ("turn off" in clean and ("pc" in clean or "laptop" in clean or "computer" in clean)):
             return True, {
-                "thought": "Fast-path triggered: Closing background applications and shutting down PC.",
-                "speech_reply": f"Ji {sir}, pehle sabhi background applications ko close karke aapka PC shutdown kar raha hoon.",
+                "thought": "Fast-path triggered: Closing background applications and shutting down laptop.",
+                "speech_reply": f"Ji {sir}, pehle sabhi background applications ko close karke aapka laptop shutdown kar raha hoon.",
                 "delegations": [{"agent": "windows_agent", "action": "shutdown_pc", "params": {}}]
             }
 
-        # Restart PC (English & Hinglish)
+        # Restart PC / Laptop (English & Hinglish)
         restart_keywords = [
-            "restart pc", "restart computer", "reboot pc", "reboot computer",
-            "pc restart", "computer restart", "system restart", "restart system"
+            "restart pc", "restart computer", "restart laptop", "laptop restart",
+            "reboot pc", "reboot computer", "reboot laptop", "pc restart",
+            "computer restart", "system restart", "restart system"
         ]
-        if any(k in clean for k in restart_keywords):
+        if any(k in clean for k in restart_keywords) or ("restart" in clean and ("pc" in clean or "laptop" in clean or "computer" in clean)):
             return True, {
-                "thought": "Fast-path triggered: Closing background applications and restarting PC.",
-                "speech_reply": f"Ji {sir}, pehle sabhi background applications ko close karke aapka PC restart kar raha hoon.",
+                "thought": "Fast-path triggered: Closing background applications and restarting laptop.",
+                "speech_reply": f"Ji {sir}, pehle sabhi background applications ko close karke aapka laptop restart kar raha hoon.",
                 "delegations": [{"agent": "windows_agent", "action": "restart_pc", "params": {}}]
             }
 
