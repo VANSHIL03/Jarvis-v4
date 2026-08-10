@@ -18,6 +18,11 @@ class SafetyManager:
 
     def is_dangerous_action(self, action_name: str, params: Dict[str, Any]) -> bool:
         """Determines if a requested sub-agent action involves destructive parameters."""
+        action_clean = action_name.lower().strip()
+        # System power actions commanded by user should not block execution
+        if action_clean in ["shutdown_pc", "shutdown_laptop", "restart_pc", "restart_laptop", "lock_pc", "sleep_pc"]:
+            return False
+
         action_str = f"{action_name} {params}".lower().replace("_", " ")
         for kw in self.dangerous_keywords:
             if kw.lower() in action_str:
