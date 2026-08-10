@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     # Local LLM & Ollama Configuration
     OLLAMA_BASE_URL: str = "http://127.0.0.1:11434"
-    DEFAULT_MODEL: str = "llama3.1:8b"
+    DEFAULT_MODEL: str = "jarvis-model"
     FALLBACK_MODEL: str = "qwen2.5:7b"
     LLM_TEMPERATURE: float = 0.3
     LLM_MAX_TOKENS: int = 2048
