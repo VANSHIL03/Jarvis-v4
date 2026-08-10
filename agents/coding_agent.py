@@ -6,7 +6,7 @@ Handles code generation (Python, Java, C++, HTML, JS, React, Unity C#), debuggin
 import sys
 import subprocess
 import tempfile
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from agents.base_agent import BaseAgent
 from ai.llm_client import LocalLLMClient
 from utils.logger import logger
@@ -30,7 +30,8 @@ class CodingAgent(BaseAgent):
             prompt = params.get("prompt", "")
             sys_prompt = f"You are an expert {language} software developer. Generate clean, efficient, production quality code with comments."
             code = await self.llm.generate_response(prompt=prompt, system_prompt=sys_prompt)
-            return {"status": "success", "language": language, "code": code}
+            notepad_path = self._open_in_notepad(code, language)
+            return {"status": "success", "language": language, "code": code, "notepad_path": notepad_path}
 
         elif action == "explain_code":
             code = params.get("code", "")
@@ -43,13 +44,35 @@ class CodingAgent(BaseAgent):
             error_msg = params.get("error", "")
             prompt = f"Debug this code:\n```\n{code}\n```\nStack Trace / Error:\n{error_msg}\nProvide corrected code and explanation."
             fix = await self.llm.generate_response(prompt=prompt)
-            return {"status": "success", "debug_result": fix}
+            notepad_path = self._open_in_notepad(fix, "txt")
+            return {"status": "success", "debug_result": fix, "notepad_path": notepad_path}
 
         elif action == "run_python_sandbox":
             code = params.get("code", "")
             return self._run_python_sandbox(code)
 
         return {"status": "error", "message": f"Unknown coding action: '{action}'"}
+
+    def _open_in_notepad(self, code: str, language: str = "txt") -> Optional[str]:
+        """Saves generated code into a file and opens it in Notepad."""
+        try:
+            ext_map = {
+                "python": "py", "java": "java", "cpp": "cpp", "c++": "cpp",
+                "c": "c", "c#": "cs", "csharp": "cs", "html": "html",
+                "css": "css", "javascript": "js", "js": "js", "sql": "sql",
+                "xml": "xml", "json": "json"
+            }
+            ext = ext_map.get(language.lower(), "txt")
+            with tempfile.NamedTemporaryFile(suffix=f".{ext}", prefix="JARVIS_Code_", delete=False, mode="w", encoding="utf-8") as tmp:
+                tmp.write(code)
+                code_file = tmp.name
+
+            subprocess.Popen(["notepad.exe", code_file])
+            logger.info(f"Opened generated code in Notepad: {code_file}")
+            return code_file
+        except Exception as e:
+            logger.warning(f"Could not open Notepad for generated code: {e}")
+            return None
 
     def _run_python_sandbox(self, code: str) -> Dict[str, Any]:
         """Executes Python snippet safely in temporary subprocess sandbox."""

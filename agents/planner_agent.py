@@ -38,7 +38,49 @@ class PlannerAgent:
 
     def _fast_path_match(self, user_input: str) -> tuple[bool, Dict[str, Any]]:
         """Fast-path resolution for instant OS, application & web site automation commands."""
-        clean = re.sub(r"^(?:jarvis\s*,?\s*)+", "", user_input.lower().strip()).strip()
+        clean = re.sub(r"^(?:hey\s+jarvis|hi\s+jarvis|okay\s+jarvis|ok\s+jarvis|jarvis)\s*[,:\.\-]?\s*", "", user_input.lower().strip(), flags=re.I).strip()
+
+        # User Name Query (Ask Name)
+        if any(phrase in clean.lower() for phrase in ["what is my name", "do you know my name", "tell me my name", "mera naam kya", "mera naam batao"]):
+            facts = self.memory.get_all_facts()
+            name_fact = next((f["value_data"] for f in facts if f.get("key_name") == "user_name"), None)
+            if name_fact:
+                reply = f"Sir, aapka naam {name_fact} hai."
+            else:
+                reply = "Sir, aapne abhi tak apna naam nahi bataya hai."
+            return True, {
+                "thought": "Fast-path triggered: Querying database for user_name fact.",
+                "speech_reply": reply,
+                "delegations": []
+            }
+
+        # User Name Set / Update
+        name_update_match = re.search(
+            r"(?:change\s+(?:my\s+)?name\s+(?:to|is)\s+|naam\s+change\s+(?:kro|karo)\s+(?:mera\s+naam\s+)?|mera\s+naam\s+|my\s+name\s+is\s+)(.+?)(?:\s+hai|\s+h)?$",
+            clean,
+            re.IGNORECASE
+        )
+        if name_update_match:
+            raw_name = name_update_match.group(1).strip().strip("?").strip(".")
+            raw_name = re.sub(r"^(?:change\s+(?:kro|karo)\s+)?(?:mera\s+naam\s+)?", "", raw_name, flags=re.I).strip()
+            title_name = raw_name.title()
+            if title_name and len(title_name) > 1 and not any(w in title_name.lower() for w in ["kya", "what", "how", "where", "why"]):
+                self.memory.store_user_fact("user_name", title_name, category="user")
+                return True, {
+                    "thought": f"Fast-path triggered: Updated user_name to '{title_name}' in SQLite database.",
+                    "speech_reply": f"Ji Sir, maine apna database update kar diya hai. Aapka asli naam {title_name} hai.",
+                    "delegations": [{"agent": "memory_agent", "action": "store_fact", "params": {"key": "user_name", "value": title_name, "category": "user"}}]
+                }
+
+        # Memory Storage fast-path (English & Hinglish)
+        if any(clean.lower().startswith(p) for p in ["remember that ", "remember my ", "remember ", "yaad rakho ki ", "yaad rakho "]):
+            fact = re.sub(r"^(?:remember\s+(?:that\s+)?|yaad\s+rakho\s+(?:ki\s+)?)\s*", "", clean, flags=re.I).strip()
+            if fact:
+                return True, {
+                    "thought": f"Fast-path triggered: Storing fact '{fact}' in database memory.",
+                    "speech_reply": f"Ji Sir, maine yaad rakh liya hai ki '{fact}'.",
+                    "delegations": [{"agent": "memory_agent", "action": "store_fact", "params": {"key": "user_fact", "value": fact, "category": "user"}}]
+                }
 
         # Git / GitHub push fast-path
         if any(phrase in clean for phrase in ["push to github", "push folder to github", "push project to github", "push repository to github", "push repo to github", "upload to github", "push code to github"]):
@@ -71,6 +113,82 @@ class PlannerAgent:
                 "delegations": [{"agent": "whatsapp_agent", "action": "send_message", "params": {"contact": contact, "message": msg}}]
             }
 
+        # YouTube Media Controls (Pause, Resume, 10s Skip, 10s Rewind, Next Video)
+        if any(k in clean.lower() for k in ["pause video", "stop video", "video rok do", "video pause karo", "pause youtube", "stop youtube", "video stop karo"]):
+            return True, {
+                "thought": "Fast-path triggered: Pausing YouTube video playback.",
+                "speech_reply": "Ji Sir, video pause kar raha hoon.",
+                "delegations": [{"agent": "browser_agent", "action": "pause_video", "params": {}}]
+            }
+
+        if any(k in clean.lower() for k in ["resume video", "play video", "video chalao", "video resume karo", "resume youtube", "play youtube video"]):
+            return True, {
+                "thought": "Fast-path triggered: Resuming YouTube video playback.",
+                "speech_reply": "Ji Sir, video resume kar raha hoon.",
+                "delegations": [{"agent": "browser_agent", "action": "resume_video", "params": {}}]
+            }
+
+        if any(k in clean.lower() for k in ["skip 10", "10 sec skip", "10 second skip", "10 sec aage", "skip video", "forward video", "10s skip", "skip 10 seconds"]):
+            return True, {
+                "thought": "Fast-path triggered: Skipping 10 seconds forward on YouTube.",
+                "speech_reply": "Ji Sir, 10 seconds aage kar raha hoon.",
+                "delegations": [{"agent": "browser_agent", "action": "skip_video", "params": {}}]
+            }
+
+        if any(k in clean.lower() for k in ["rewind 10", "10 sec rewind", "10 second rewind", "10 sec peeche", "rewind video", "10s rewind", "rewind 10 seconds"]):
+            return True, {
+                "thought": "Fast-path triggered: Rewinding 10 seconds backward on YouTube.",
+                "speech_reply": "Ji Sir, 10 seconds peeche kar raha hoon.",
+                "delegations": [{"agent": "browser_agent", "action": "rewind_video", "params": {}}]
+            }
+
+        if any(k in clean.lower() for k in ["next video", "agla video", "play next video", "next song", "agla gana"]):
+            return True, {
+                "thought": "Fast-path triggered: Playing next video on YouTube.",
+                "speech_reply": "Ji Sir, agla video chala raha hoon.",
+                "delegations": [{"agent": "browser_agent", "action": "next_video", "params": {}}]
+            }
+
+        # Google Maps & Distance Queries (English & Hinglish)
+        if any(k in clean.lower() for k in ["distance", "kitni door", "kitna door", "how far"]):
+            dest = clean
+            dest = re.sub(r"^(?:how\s+much\s+distance\s+is\s+|how\s+far\s+is\s+|distance\s+to\s+|distance\s+of\s+|what\s+is\s+the\s+distance\s+to\s+)", "", dest, flags=re.I).strip()
+            dest = re.sub(r"\s+(?:from\s+(?:my\s+)?(?:current\s+)?location|kitni\s+door\s+hai|kitna\s+door\s+hai|ka\s+distance\s+kitna\s+hai|ka\s+distance|distance)$", "", dest, flags=re.I).strip()
+            dest = re.sub(r"^(?:tell\s+me|find|batao|check)\s+", "", dest, flags=re.I).strip()
+            if dest:
+                return True, {
+                    "thought": f"Fast-path triggered: Opening Google Maps directions to '{dest}'.",
+                    "speech_reply": f"Ji Sir, Google Maps par {dest} ka rasta aur distance khol raha hoon.",
+                    "delegations": [{"agent": "browser_agent", "action": "navigate_maps", "params": {"destination": dest}}]
+                }
+
+        if any(k in clean.lower() for k in ["maps", "map", "navigate", "location", "rasta"]):
+            loc = clean
+            loc = re.sub(r"^(?:where\s+is\s+|navigate\s+to\s+|location\s+of\s+|search\s+|find\s+|open\s+maps\s+and\s+search\s+)", "", loc, flags=re.I).strip()
+            loc = re.sub(r"\s+(?:on\s+maps|on\s+google\s+maps|maps\s+pe|maps\s+par|maps\s+p|location|rasta|dikhao|dhoondho)$", "", loc, flags=re.I).strip()
+            loc = re.sub(r"^(?:google\s+maps\s+pe|maps\s+pe|maps\s+par)\s*", "", loc, flags=re.I).strip()
+            loc = re.sub(r"\s+(?:ka\s+rasta|ki\s+location)$", "", loc, flags=re.I).strip()
+            if loc:
+                return True, {
+                    "thought": f"Fast-path triggered: Searching Google Maps for '{loc}'.",
+                    "speech_reply": f"Ji Sir, Google Maps par {loc} search kar raha hoon.",
+                    "delegations": [{"agent": "browser_agent", "action": "open_maps", "params": {"location": loc}}]
+                }
+
+        # Code Generation fast-path (English & Hinglish)
+        if "code" in clean.lower() and any(k in clean.lower() for k in ["write", "likh", "banao", "create", "generate", "give", "do", "script", "make"]):
+            lang = "python"
+            for l in ["java", "python", "cpp", "c++", "c#", "html", "css", "javascript", "js", "sql", "react", "unity"]:
+                if l in clean.lower():
+                    lang = l
+                    break
+
+            return True, {
+                "thought": f"Fast-path triggered: Generating {lang} code and opening in Notepad.",
+                "speech_reply": f"Ji Sir, aapka {lang.capitalize()} code generate karke Notepad me open kar raha hoon.",
+                "delegations": [{"agent": "coding_agent", "action": "generate_code", "params": {"language": lang, "prompt": user_input}}]
+            }
+
         # Hinglish / English YouTube search & video/music playback
         yt_keywords = ["youtube", "you tube", "youtuve", "yutube", "utube"]
         music_keywords = ["music", "song", "gana", "gaana", "geet", "video", "track", "audio"]
@@ -91,6 +209,24 @@ class PlannerAgent:
                 "thought": f"Fast-path triggered: Playing '{term}' on YouTube.",
                 "speech_reply": f"Ji Sir, YouTube par {term} chala raha hoon.",
                 "delegations": [{"agent": "browser_agent", "action": "play_youtube", "params": {"search_term": term}}]
+            }
+
+        # Date & Time Queries (English & Hinglish)
+        date_time_keywords = [
+            "date and time", "time and date", "todays date", "today's date",
+            "time kya", "kitne baje", "kya tarikh", "kya date", "current time",
+            "what time", "what is the date", "aaj konsi", "tarikh", "what is date"
+        ]
+        if any(k in clean.lower() for k in date_time_keywords) or ("time" in clean.lower() and "what" in clean.lower()) or ("date" in clean.lower() and "what" in clean.lower()):
+            from datetime import datetime
+            now = datetime.now()
+            t_str = now.strftime("%I:%M %p")
+            d_str = now.strftime("%A, %B %d, %Y")
+            reply = f"Sir, aaj ki date hai {d_str}, aur abhi time {t_str} ho raha hai."
+            return True, {
+                "thought": f"Fast-path triggered: Reporting real-time date '{d_str}' and time '{t_str}'.",
+                "speech_reply": reply,
+                "delegations": []
             }
 
         # Google search fast-path (English & Hinglish)
@@ -316,6 +452,12 @@ User Request: "{user_input}"
         else:
             # Direct natural speech answer if no JSON action requested
             speech_reply = cleaned_response if 'cleaned_response' in locals() else "I apologize, Sir. I am unsure how to complete that request. Could you please clarify?"
+
+        # Clean speech_reply from any leftover JSON code blocks or raw formatting
+        if speech_reply:
+            speech_reply = re.sub(r"```(?:json)?[\s\S]*?```", "", speech_reply).strip()
+            speech_reply = re.sub(r"[\{\}\[\]\\]", "", speech_reply).strip()
+            speech_reply = speech_reply.strip('"').strip("'").strip()
 
         # 5. Record Turn into Memory
         self.memory.record_turn(session_id, "user", user_input)

@@ -114,7 +114,12 @@ def main():
         agents=sub_agents
     )
 
-    # 7. Main Arc Reactor HUD Dashboard Window
+    # 7. Local Wi-Fi Mobile Remote Server
+    from server.web_server import MobileWebServer
+    mobile_server = MobileWebServer(planner_agent=planner_agent, port=8000)
+    mobile_server.start()
+
+    # 8. Main Arc Reactor HUD Dashboard Window
     main_window = JarvisMainWindow(
         planner_agent=planner_agent,
         tts_engine=tts_engine,

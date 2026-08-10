@@ -35,4 +35,35 @@ class BrowserAgent(BaseAgent):
             success = await self.browser.play_youtube(term)
             return {"status": "success" if success else "error", "search_term": term}
 
+        elif action in ["pause_video", "pause"]:
+            success = await self.browser.youtube_control("pause")
+            return {"status": "success" if success else "error", "action": "pause"}
+
+        elif action in ["resume_video", "resume", "play_video"]:
+            success = await self.browser.youtube_control("resume")
+            return {"status": "success" if success else "error", "action": "resume"}
+
+        elif action in ["skip_video", "skip", "forward"]:
+            success = await self.browser.youtube_control("skip")
+            return {"status": "success" if success else "error", "action": "skip_10s"}
+
+        elif action in ["rewind_video", "rewind", "back"]:
+            success = await self.browser.youtube_control("rewind")
+            return {"status": "success" if success else "error", "action": "rewind_10s"}
+
+        elif action in ["next_video", "next"]:
+            success = await self.browser.youtube_control("next")
+            return {"status": "success" if success else "error", "action": "next_video"}
+
+        elif action in ["open_maps", "search_maps", "find_location"]:
+            location = params.get("location", "") or params.get("query", "")
+            success = await self.browser.open_maps(location)
+            return {"status": "success" if success else "error", "location": location}
+
+        elif action in ["navigate_maps", "get_distance", "maps_directions", "navigate"]:
+            destination = params.get("destination", "") or params.get("location", "")
+            origin = params.get("origin", "")
+            success = await self.browser.get_maps_directions(destination, origin)
+            return {"status": "success" if success else "error", "destination": destination, "origin": origin}
+
         return {"status": "error", "message": f"Unknown browser action: '{action}'"}

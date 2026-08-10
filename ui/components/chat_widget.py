@@ -96,3 +96,15 @@ class ChatWidget(QWidget):
     def append_system_log(self, log_msg: str):
         html = f"<div style='margin-bottom: 2px; font-size: 10px; color: #6688aa;'><i>[SYSTEM]: {log_msg}</i></div>"
         self.text_feed.append(html)
+
+    def append_code_message(self, code_text: str, language: str = "Code"):
+        import html
+        escaped_code = html.escape(code_text.strip())
+        code_html = (
+            f"<div style='margin-top: 4px; margin-bottom: 6px; background-color: rgba(10, 20, 35, 230); "
+            f"border: 1px solid #00d2ff; border-radius: 6px; padding: 8px; font-family: Consolas, monospace; font-size: 11px;'>"
+            f"<b style='color: #00e5ff;'>[{language.upper()}] OUTPUT:</b><br/>"
+            f"<pre style='color: #a0f0ff; margin: 4px 0 0 0; white-space: pre-wrap;'>{escaped_code}</pre>"
+            f"</div>"
+        )
+        self.text_feed.append(code_html)

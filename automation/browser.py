@@ -31,13 +31,15 @@ class PlaywrightBrowser:
         if not url.startswith("http"):
             url = f"https://{url}"
 
-        await self._ensure_browser()
-        if self._page:
-            try:
+        try:
+            await self._ensure_browser()
+            if self._page:
                 await self._page.goto(url)
                 return True
-            except Exception as e:
-                logger.error(f"Playwright navigation error: {e}")
+        except Exception as e:
+            logger.warning(f"Playwright navigation failed ({e}). Opening in default system browser.")
+            self._browser = None
+            self._page = None
 
         # System browser fallback
         webbrowser.open(url)
@@ -100,6 +102,70 @@ class PlaywrightBrowser:
                 pass
 
         return True
+
+    async def youtube_control(self, command: str) -> bool:
+        """Controls active YouTube video playback (pause, resume, 10s skip, 10s rewind, next video)."""
+        cmd = command.lower()
+
+        # Method 1: Playwright Page active control
+        if self._page and "youtube.com" in self._page.url:
+            try:
+                if cmd in ["pause", "stop", "resume", "play"]:
+                    await self._page.keyboard.press("k")
+                    logger.info(f"YouTube Playwright control: toggled play/pause ('{cmd}')")
+                    return True
+                elif cmd in ["skip", "forward"]:
+                    await self._page.keyboard.press("l")  # 10s skip forward
+                    logger.info("YouTube Playwright control: skipped 10 seconds forward")
+                    return True
+                elif cmd in ["rewind", "back"]:
+                    await self._page.keyboard.press("j")  # 10s rewind backward
+                    logger.info("YouTube Playwright control: rewound 10 seconds backward")
+                    return True
+                elif cmd in ["next"]:
+                    await self._page.keyboard.press("Shift+N")  # Next video
+                    logger.info("YouTube Playwright control: triggered next video")
+                    return True
+            except Exception as e:
+                logger.debug(f"Playwright YouTube control failed: {e}")
+
+        # Method 2: Global PyAutoGUI media/keyboard shortcut fallback (system browser / Chrome)
+        try:
+            import pyautogui
+            if cmd in ["pause", "stop", "resume", "play"]:
+                pyautogui.press('k')
+                logger.info("PyAutoGUI YouTube control: pressed 'k'")
+            elif cmd in ["skip", "forward"]:
+                pyautogui.press('l')
+                logger.info("PyAutoGUI YouTube control: pressed 'l' (10s skip)")
+            elif cmd in ["rewind", "back"]:
+                pyautogui.press('j')
+                logger.info("PyAutoGUI YouTube control: pressed 'j' (10s rewind)")
+            elif cmd in ["next"]:
+                pyautogui.hotkey('shift', 'n')
+                logger.info("PyAutoGUI YouTube control: pressed Shift+N (Next Video)")
+            return True
+        except Exception as e:
+            logger.error(f"PyAutoGUI YouTube control error: {e}")
+            return False
+
+    async def open_maps(self, query: str) -> bool:
+        """Opens Google Maps and searches for target location."""
+        encoded = urllib.parse.quote(query)
+        maps_url = f"https://www.google.com/maps/search/{encoded}"
+        logger.info(f"Opening Google Maps search for '{query}': {maps_url}")
+        return await self.open_url(maps_url)
+
+    async def get_maps_directions(self, destination: str, origin: str = "") -> bool:
+        """Opens Google Maps navigation directions from origin/current location to destination."""
+        dest_encoded = urllib.parse.quote(destination)
+        if origin:
+            orig_encoded = urllib.parse.quote(origin)
+            dir_url = f"https://www.google.com/maps/dir/{orig_encoded}/{dest_encoded}"
+        else:
+            dir_url = f"https://www.google.com/maps/dir/?api=1&destination={dest_encoded}"
+        logger.info(f"Opening Google Maps directions to '{destination}': {dir_url}")
+        return await self.open_url(dir_url)
 
     async def close_browser(self):
         """Closes Playwright browser instance."""

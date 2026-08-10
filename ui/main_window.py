@@ -302,11 +302,14 @@ class JarvisMainWindow(QMainWindow):
 
                         # Calculate RMS volume level
                         rms = float(np.sqrt(np.mean(audio_data ** 2)))
-                        if rms < 0.001:
+                        if rms < 0.0001:
                             continue
 
-                        # Gentle 2x gain boost for quiet speech without blowing up background noise
-                        audio_data = np.clip(audio_data * 2.0, -1.0, 1.0)
+                        # Smart dynamic auto-gain boost for quiet laptop microphones
+                        peak = float(np.max(np.abs(audio_data)))
+                        if peak > 0.0001:
+                            gain = min(15.0, 0.75 / peak)
+                            audio_data = np.clip(audio_data * gain, -1.0, 1.0)
 
                         # Save to temp wav file
                         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
@@ -392,8 +395,19 @@ class JarvisMainWindow(QMainWindow):
             self.chat_widget.append_jarvis_message(speech_reply, thought=thought)
 
         for item in exec_results:
-            log_str = f"Agent '{item.get('agent')}' executed '{item.get('action')}'"
+            agent_name = item.get("agent", "")
+            action_name = item.get("action", "")
+            res_data = item.get("result", {})
+
+            log_str = f"Agent '{agent_name}' executed '{action_name}'"
             self.chat_widget.append_system_log(log_str)
+
+            # Display generated code or result payload directly in GUI feed
+            if isinstance(res_data, dict):
+                code_payload = res_data.get("code") or res_data.get("explanation") or res_data.get("debug_result") or res_data.get("stdout")
+                lang = res_data.get("language", "Java/Code")
+                if code_payload:
+                    self.chat_widget.append_code_message(code_payload, language=lang)
 
         if speech_reply and self.tts_engine:
             threading.Thread(target=self.tts_engine.speak, args=(speech_reply,), daemon=True).start()

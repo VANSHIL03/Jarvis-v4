@@ -63,20 +63,18 @@ class SpeechToText:
                     initial_prompt="Hinglish voice command for JARVIS: YouTube kholo, Google pe search karo, WhatsApp pe message bhejo, volume 50 percent, screenshot lo."
                 )
                 text = " ".join([segment.text for segment in segments]).strip()
-                if text:
-                    return text
+                return text
             except Exception as e:
-                logger.error(f"Whisper transcription error: {e}")
+                logger.warning(f"Whisper transcription error: {e}")
 
-        # SpeechRecognition fallback
+        # SpeechRecognition fallback (only if Faster-Whisper model is unavailable)
         try:
             import speech_recognition as sr
             r = sr.Recognizer()
             with sr.AudioFile(audio_path) as source:
                 audio = r.record(source)
                 return r.recognize_google(audio)
-        except Exception as e:
-            logger.error(f"Fallback SpeechRecognition error: {e}")
+        except Exception:
             return ""
 
     def transcribe_audio_array(self, audio_data: np.ndarray, sample_rate: int = 16000) -> str:
