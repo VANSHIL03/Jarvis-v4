@@ -20,9 +20,9 @@ class MemoryAgent(BaseAgent):
 
     async def execute_task(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
         action = action.lower()
-        if action == "store_fact":
-            key = params.get("key", "")
-            val = params.get("value", "")
+        if action in ["store_fact", "update_user_preference", "set_fact", "update_fact"]:
+            key = params.get("key") or params.get("key_name") or params.get("preference_name") or "user_preference"
+            val = params.get("value") or params.get("value_data") or params.get("preference_value") or ""
             cat = params.get("category", "user")
             self.memory.store_user_fact(key, val, cat)
             return {"status": "success", "message": f"Stored fact {key} = {val}"}
