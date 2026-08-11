@@ -25,6 +25,7 @@ from agents.git_agent import GitAgent
 
 from automation.news_fetcher import NewsFetcher
 from automation.reminder_manager import ReminderManager
+from automation.shopping import ShoppingAutomation
 
 class PlannerAgent:
     def __init__(
@@ -40,6 +41,7 @@ class PlannerAgent:
         self.sub_agents = agents
         self.news_fetcher = NewsFetcher()
         self.reminder_mgr = ReminderManager()
+        self.shopping = ShoppingAutomation()
 
     def _get_user_salutation(self) -> str:
         """Dynamically retrieves remembered user name or defaults to Sir."""
@@ -480,6 +482,26 @@ class PlannerAgent:
                     "speech_reply": msg,
                     "delegations": []
                 }
+
+        # Amazon & Flipkart E-Commerce Shopping Automation
+        if any(k in clean for k in ["amazon", "flipkart", "add to cart", "buy product", "order product"]) or (any(k in clean for k in ["order", "buy", "khareedna"]) and any(p in clean for p in ["amazon", "flipkart", "online", "item", "product"])):
+            platform = "Flipkart" if "flipkart" in clean else "Amazon"
+            prod_clean = clean
+            words_to_remove = ["jarvis", "order", "buy", "add to cart", "add", "to", "cart", "from", "on", "se", "par", "amazon", "flipkart", "karo", "kro", "please", "me", "khareedna"]
+            for w in words_to_remove:
+                prod_clean = re.sub(r"\b" + re.escape(w) + r"\b", "", prod_clean)
+            product_name = re.sub(r"\s+", " ", prod_clean).strip() or "trending items"
+
+            if platform == "Flipkart":
+                res = self.shopping.shop_on_flipkart(product_name)
+            else:
+                res = self.shopping.shop_on_amazon(product_name)
+
+            return True, {
+                "thought": f"Fast-path triggered: {platform} shopping for '{product_name}'.",
+                "speech_reply": f"Ji {sir}, aapka item '{product_name}' {platform} par Add to Cart ho gaya hai. Maine product page open kar diya hai, kripya aage ki payment complete kar lijiye!",
+                "delegations": [{"agent": "browser_agent", "action": "open_url", "params": {"url": res["url"]}}]
+            }
 
         if any(k in clean for k in ["new project", "nayi project", "project pe kaam", "start project", "create project"]):
             return True, {
