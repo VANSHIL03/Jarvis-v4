@@ -53,6 +53,15 @@ class WindowsAgent(BaseAgent):
             res = self.sys_control.sleep_pc()
             return {"status": "success" if res else "error"}
 
+        elif action in ["list_games", "detect_games", "scan_games", "get_games"]:
+            games = self.sys_control.detect_installed_games()
+            return {"status": "success", "installed_games": games}
+
+        elif action in ["launch_game", "open_game", "play_game"]:
+            game = params.get("game_name", params.get("app_name", ""))
+            res = self.sys_control.launch_game(game)
+            return {"status": "success" if res else "error", "game": game}
+
         elif action == "type_text":
             text = params.get("text", "")
             self.input_control.type_text(text)

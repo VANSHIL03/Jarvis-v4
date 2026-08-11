@@ -420,12 +420,28 @@ class PlannerAgent:
                 "delegations": [{"agent": "windows_agent", "action": "lock_pc", "params": {}}]
             }
 
-        # Suggestions: Play game, Daily news, New project
-        if any(k in clean for k in ["play game", "play a game", "game khelna hai", "game khele", "khelna hai"]):
+        # Installed Games Detection (Hinglish & English)
+        if any(k in clean for k in ["konsi game install", "kon si game install", "konse game hai", "konsi game hai", "installed games", "games install hai", "scan games", "show games", "games in pc"]):
+            detected_games = self.windows.sys_control.detect_installed_games()
+            if detected_games:
+                games_str = ", ".join(detected_games)
+                reply = f"Ji {sir}, aapke PC mein yeh games installed hain: {games_str}. Aap kaunsi game kholna chahenge?"
+            else:
+                reply = f"Ji {sir}, maine aapke system check kiye hain. Aap kaunsi game kholna chahte hain?"
             return True, {
-                "thought": "Fast-path triggered: Game suggestion response.",
-                "speech_reply": f"Ji {sir}, kya aap Steam, Tic Tac Toe, ya koi browser game khelna chahte hain? Bas mujhe naam bataiye!",
-                "delegations": []
+                "thought": "Fast-path triggered: Installed games scan.",
+                "speech_reply": reply,
+                "delegations": [{"agent": "windows_agent", "action": "list_games", "params": {}}]
+            }
+
+        # Launch Specific Game
+        open_game_match = re.search(r"(?:open|play|kholo|chalao|launch)\s+([a-zA-Z0-9\s\-]+?)\s*(?:game)?$", clean)
+        if open_game_match and any(g in clean for g in ["game", "play", "gta", "valorant", "minecraft", "cyberpunk", "csgo", "counter strike", "pubg", "fortnite", "roblox"]):
+            target = open_game_match.group(1).strip()
+            return True, {
+                "thought": f"Fast-path triggered: Launching game {target}.",
+                "speech_reply": f"Ji {sir}, {target.capitalize()} game open kar raha hoon.",
+                "delegations": [{"agent": "windows_agent", "action": "launch_game", "params": {"game_name": target}}]
             }
 
         if any(k in clean for k in ["daily news", "latest news", "news batao", "aaj ki khabar", "news dekhna hai"]):

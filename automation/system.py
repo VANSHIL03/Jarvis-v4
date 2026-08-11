@@ -8,6 +8,7 @@ import sys
 import subprocess
 import ctypes
 import time
+from pathlib import Path
 from typing import Dict, Any, Optional
 from utils.logger import logger
 
@@ -159,4 +160,68 @@ class SystemControl:
             return True
         except Exception as e:
             logger.error(f"Failed to shutdown PC: {e}")
+            return False
+
+    def detect_installed_games(self) -> list:
+        """Scans Windows Registry, Steam, Epic, Riot, and Start Menu to detect installed games."""
+        games = set()
+        
+        # 1. Steam Common Folders across drives
+        steam_paths = [
+            Path("C:/Program Files (x86)/Steam/steamapps/common"),
+            Path("C:/Program Files/Steam/steamapps/common"),
+            Path("D:/Steam/steamapps/common"),
+            Path("D:/SteamLibrary/steamapps/common"),
+            Path("E:/SteamLibrary/steamapps/common")
+        ]
+        for sp in steam_paths:
+            if sp.exists():
+                for folder in sp.iterdir():
+                    if folder.is_dir() and not folder.name.startswith("."):
+                        games.add(folder.name)
+
+        # 2. Riot Games & Epic Games
+        game_dirs = [Path("C:/Riot Games"), Path("C:/Program Files/Epic Games"), Path("D:/Epic Games")]
+        for gd in game_dirs:
+            if gd.exists():
+                for folder in gd.iterdir():
+                    if folder.is_dir():
+                        games.add(folder.name)
+
+        # 3. Windows Registry Installed Software
+        import winreg
+        def _scan_reg(root, key_path):
+            try:
+                with winreg.OpenKey(root, key_path) as k:
+                    for i in range(winreg.QueryInfoKey(k)[0]):
+                        sub = winreg.EnumKey(k, i)
+                        with winreg.OpenKey(k, sub) as sk:
+                            try:
+                                name, _ = winreg.QueryValueEx(sk, "DisplayName")
+                                if name and any(kw in name.lower() for kw in ['game', 'steam', 'epic', 'gta', 'valorant', 'minecraft', 'csgo', 'counter-strike', 'cyberpunk', 'pubg', 'fortnite', 'roblox', 'call of duty', 'forza', 'apex', 'genshin', 'fifa']):
+                                    if not any(ign in name.lower() for ign in ['sdk', 'input', 'driver', 'redist']):
+                                        games.add(name)
+                            except Exception:
+                                pass
+            except Exception:
+                pass
+
+        _scan_reg(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall")
+        _scan_reg(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall")
+        _scan_reg(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Uninstall")
+
+        result = sorted(list(games))
+        logger.info(f"Detected {len(result)} installed games: {result}")
+        return result
+
+    def launch_game(self, game_name: str) -> bool:
+        """Launches requested game by app name or executable search."""
+        logger.info(f"Attempting to launch game: '{game_name}'")
+        if self.launch_app(game_name):
+            return True
+        try:
+            os.system(f'start "" "{game_name}"')
+            return True
+        except Exception as e:
+            logger.error(f"Failed to launch game '{game_name}': {e}")
             return False
