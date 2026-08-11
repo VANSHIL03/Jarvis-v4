@@ -23,6 +23,8 @@ from agents.file_agent import FileAgent
 from agents.gaming_agent import GamingAgent
 from agents.git_agent import GitAgent
 
+from automation.news_fetcher import NewsFetcher
+
 class PlannerAgent:
     def __init__(
         self,
@@ -35,6 +37,7 @@ class PlannerAgent:
         self.memory = memory_manager
         self.safety = safety_manager
         self.sub_agents = agents
+        self.news_fetcher = NewsFetcher()
 
     def _get_user_salutation(self) -> str:
         """Dynamically retrieves remembered user name or defaults to Sir."""
@@ -444,10 +447,11 @@ class PlannerAgent:
                 "delegations": [{"agent": "windows_agent", "action": "launch_game", "params": {"game_name": target}}]
             }
 
-        if any(k in clean for k in ["daily news", "latest news", "news batao", "aaj ki khabar", "news dekhna hai"]):
+        if any(k in clean for k in ["daily news", "latest news", "news batao", "aaj ki khabar", "news dekhna hai", "hinglish news", "news sunao"]):
+            news_res = self.news_fetcher.get_hinglish_news_bulletin(salutation=sir)
             return True, {
-                "thought": "Fast-path triggered: Opening news portal.",
-                "speech_reply": f"Ji {sir}, main aapke liye latest daily news headlines web browser par khol raha hoon.",
+                "thought": "Fast-path triggered: Live Hinglish daily news bulletin.",
+                "speech_reply": news_res["speech_reply"],
                 "delegations": [{"agent": "browser_agent", "action": "open_website", "params": {"url": "https://news.google.com"}}]
             }
 
