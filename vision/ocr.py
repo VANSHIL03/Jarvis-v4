@@ -21,9 +21,13 @@ class ScreenOCR:
             logger.warning(f"EasyOCR GPU init failed ({e}). OCR fallback active.")
 
     def capture_screen(self, bbox: Optional[tuple] = None) -> np.ndarray:
-        """Captures primary display screen or region."""
-        img = ImageGrab.grab(bbox=bbox)
-        return np.array(img)
+        """Captures primary display screen or region safely."""
+        try:
+            img = ImageGrab.grab(bbox=bbox)
+            return np.array(img)
+        except Exception as e:
+            logger.warning(f"Screen capture failed ({e}). Returning empty image buffer.")
+            return np.zeros((100, 100, 3), dtype=np.uint8)
 
     def extract_text_from_screen(self, bbox: Optional[tuple] = None) -> str:
         """Extracts text from full screen or specified region."""
