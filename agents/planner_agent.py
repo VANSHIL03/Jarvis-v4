@@ -94,22 +94,21 @@ class PlannerAgent:
                     "delegations": [{"agent": "memory_agent", "action": "store_fact", "params": {"key": "user_name", "value": title_name, "category": "user"}}]
                 }
 
-        # Favorite / Preference fast-path (English & Hinglish)
-        fav_match = re.search(r"(?:mera\s+favou?rite\s+|my\s+favou?rite\s+)(.+?)\s+(?:is\s+|hai\s+)(.+)$", clean, re.I)
-        if not fav_match:
-            fav_match = re.search(r"(?:mera\s+favou?rite\s+|my\s+favou?rite\s+)(.+?)\s+(.+)$", clean, re.I)
-        if fav_match:
-            item = fav_match.group(1).strip()
-            val = fav_match.group(2).strip()
-            val = re.sub(r"\s+(?:hai|h)$", "", val, flags=re.I).strip()
-            if item and val and len(val) > 1:
-                key_name = f"favorite_{item.replace(' ', '_')}"
-                self.memory.store_user_fact(key_name, val, category="user")
-                return True, {
-                    "thought": f"Fast-path triggered: Updated preference '{key_name}' = '{val}' in database.",
-                    "speech_reply": f"Ji {sir}, maine yaad rakh liya hai ki aapka favorite {item} {val} hai.",
-                    "delegations": [{"agent": "memory_agent", "action": "store_fact", "params": {"key": key_name, "value": val, "category": "user"}}]
-                }
+        # Favorite / Preference fast-path (Declarative statements only: "mera favourite food pav bhaji hai")
+        if not any(w in clean for w in ["order", "buy", "search", "mangao", "manga", "kholo", "open", "cart"]):
+            fav_match = re.search(r"(?:mera\s+favou?rite\s+|my\s+favou?rite\s+)(.+?)\s+(?:is\s+|hai\s+|h\s+)(.+)$", clean, re.I)
+            if fav_match:
+                item = fav_match.group(1).strip()
+                val = fav_match.group(2).strip()
+                val = re.sub(r"\s+(?:hai|h)$", "", val, flags=re.I).strip()
+                if item and val and len(val) > 1:
+                    key_name = f"favorite_{item.replace(' ', '_')}"
+                    self.memory.store_user_fact(key_name, val, category="user")
+                    return True, {
+                        "thought": f"Fast-path triggered: Updated preference '{key_name}' = '{val}' in database.",
+                        "speech_reply": f"Ji {sir}, maine yaad rakh liya hai ki aapka favorite {item} {val} hai.",
+                        "delegations": [{"agent": "memory_agent", "action": "store_fact", "params": {"key": key_name, "value": val, "category": "user"}}]
+                    }
 
         # Memory Storage fast-path (English & Hinglish)
         if any(clean.lower().startswith(p) for p in ["remember that ", "remember my ", "remember ", "yaad rakho ki ", "yaad rakho "]):
@@ -536,7 +535,7 @@ class PlannerAgent:
 
             platform = "Zomato" if "zomato" in clean else "Swiggy"
             food_clean = clean
-            words_to_remove = ["jarvis", "order", "buy", "khana", "food", "se", "par", "pe", "on", "in", "swiggy", "zomato", "karo", "kro", "mangao", "manga", "search", "kholo", "open"]
+            words_to_remove = ["jarvis", "order", "buy", "khana", "food", "se", "par", "pe", "on", "in", "swiggy", "zomato", "karo", "kro", "mangao", "manga", "search", "kholo", "open", "favourite", "favorite", "fav", "mera", "meri"]
             for w in words_to_remove:
                 food_clean = re.sub(r"\b" + re.escape(w) + r"\b", "", food_clean)
             target_food = re.sub(r"\s+", " ", food_clean).strip()
