@@ -183,8 +183,10 @@ class JarvisMainWindow(QMainWindow):
             pass
 
         welcome_text = (
-            f"Namaste {name}! Main aapka Jarvis hoon. "
-            "Aap aaj kya karna chahenge? Kya game khelna hai, daily news dekhna hai, ya koi naya project start karna hai?"
+            f"Good day, Sir {name}. All systems operational, local GPU core online, "
+            "and hardware telemetry running at nominal efficiency. "
+            "Main aapki kya sewa kar sakta hoon, Sir? "
+            "Kya aap koi game khelna chahenge, daily news sunna chahenge, ya kisi naye project pe kaam karna chahenge?"
         )
         self.chat_widget.append_jarvis_message(welcome_text)
         if self.tts_engine:

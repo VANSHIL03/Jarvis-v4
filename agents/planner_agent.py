@@ -241,14 +241,14 @@ class PlannerAgent:
         is_yt_mention = any(k in clean.lower() for k in yt_keywords)
         is_music_mention = any(k in clean.lower() for k in music_keywords)
 
-        if is_yt_mention or (is_music_mention and any(k in clean.lower() for k in ["play", "chalao", "sunao", "search"])):
+        if is_yt_mention or (is_music_mention and any(k in clean.lower() for k in ["play", "chalao", "sunao", "search", "kholo", "open"])):
             term = clean
-            term = re.sub(r"^(?:play|search|chalao|sunao|open|kholo|launch)\s+", "", term, flags=re.I).strip()
-            term = re.sub(r"\s+(?:on|in|pe|par|p)\s+(?:youtube|you\s+tube|youtuve|yutube|utube).*$", "", term, flags=re.I).strip()
-            term = re.sub(r"^(?:youtube|you\s+tube|youtuve|yutube|utube)\s+(?:pe|par|p)?\s*", "", term, flags=re.I).strip()
-            term = re.sub(r"\s+(?:chalao|play\s+karo|search\s+karo|dhoondho|sunao)$", "", term, flags=re.I).strip()
+            words_to_remove = ["jarvis", "youtube", "you tube", "pe", "par", "p", "on", "in", "from", "kholo", "chalao", "open", "play", "search", "sunao", "dhoondho", "video", "ka", "ki", "ke", "ko"]
+            for w in words_to_remove:
+                term = re.sub(r"\b" + re.escape(w) + r"\b", "", term, flags=re.I)
+            term = re.sub(r"\s+", " ", term).strip()
             
-            if not term or term.lower() in ["music", "song", "gana", "video", "youtube"]:
+            if not term or term.lower() in ["music", "song", "gana", "video", "youtube", "latest"]:
                 term = "top trending music"
 
             return True, {
@@ -517,9 +517,9 @@ class PlannerAgent:
         if any(k in clean for k in ["amazon", "flipkart", "add to cart", "buy product", "order product", "kharidna", "kharidne", "chahiye"]) or (any(k in clean for k in ["order", "buy", "khareedna", "kharidna", "chahiye"]) and any(p in clean for p in ["amazon", "flipkart", "online", "item", "product", "cable", "mouse", "shoes", "laptop", "phone"])):
             platform = "Flipkart" if "flipkart" in clean else "Amazon"
             prod_clean = clean
-            words_to_remove = ["jarvis", "order", "buy", "add to cart", "add", "to", "cart", "from", "on", "se", "par", "pe", "p", "amazon", "flipkart", "karo", "kro", "please", "me", "khareedna", "kharidna", "kharidne", "kharid", "chahiye", "hai", "h", "ho", "mujhe", "mujhko", "mera", "meri", "bhi", "ek", "one"]
+            words_to_remove = ["jarvis", "order", "buy", "add to cart", "add", "to", "cart", "from", "on", "se", "par", "pe", "p", "amazon", "flipkart", "karo", "kro", "kroo", "please", "me", "khareedna", "kharidna", "kharidne", "kharid", "chahiye", "hai", "h", "ho", "mujhe", "mujhko", "mera", "meri", "bhi", "ek", "one", "search", "krke", "karke", "karna", "karni", "karne"]
             for w in words_to_remove:
-                prod_clean = re.sub(r"\b" + re.escape(w) + r"\b", "", prod_clean)
+                prod_clean = re.sub(r"\b" + re.escape(w) + r"\b", "", prod_clean, flags=re.I)
             product_name = re.sub(r"\s+", " ", prod_clean).strip() or "trending items"
 
             if platform == "Flipkart":
