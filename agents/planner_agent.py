@@ -213,18 +213,32 @@ class PlannerAgent:
                     "delegations": [{"agent": "browser_agent", "action": "open_maps", "params": {"location": loc}}]
                 }
 
-        # Code Generation fast-path (English & Hinglish)
-        if "code" in clean.lower() and any(k in clean.lower() for k in ["write", "likh", "banao", "create", "generate", "give", "do", "script", "make"]):
+        # Code Generation & VS Code Project Creator fast-path (English & Hinglish)
+        if "code" in clean.lower() and any(k in clean.lower() for k in ["write", "likh", "banao", "create", "generate", "give", "do", "script", "make", "vs code", "vscode"]):
             lang = "python"
             for l in ["java", "python", "cpp", "c++", "c#", "html", "css", "javascript", "js", "sql", "react", "unity"]:
                 if l in clean.lower():
                     lang = l
                     break
 
+            folder_name = "JARVIS_Project"
+            folder_match = re.search(r"\b([a-zA-Z0-9_\-]+)\s+folder\b", clean)
+            if not folder_match:
+                folder_match = re.search(r"\b(?:folder|project|named)\s+([a-zA-Z0-9_\-]+)", clean)
+
+            if folder_match:
+                val = folder_match.group(1).strip()
+                if val not in ["banao", "create", "make", "nayi", "new", "me", "mein", "par", "pe", "vs", "code", "named", "folder", "project"]:
+                    folder_name = val.capitalize()
+
             return True, {
-                "thought": f"Fast-path triggered: Generating {lang} code and opening in Notepad.",
-                "speech_reply": f"Ji Sir, aapka {lang.capitalize()} code generate karke Notepad me open kar raha hoon.",
-                "delegations": [{"agent": "coding_agent", "action": "generate_code", "params": {"language": lang, "prompt": user_input}}]
+                "thought": f"Fast-path triggered: Creating folder '{folder_name}', writing {lang} code, and opening in VS Code.",
+                "speech_reply": f"Ji {sir}, maine '{folder_name}' folder bana kar usme VS Code open kar diya hai aur aapka {lang.capitalize()} code write kar diya hai!",
+                "delegations": [{
+                    "agent": "coding_agent",
+                    "action": "create_vscode_project",
+                    "params": {"folder_name": folder_name, "language": lang, "prompt": user_input}
+                }]
             }
 
         # YouTube website open vs song playback

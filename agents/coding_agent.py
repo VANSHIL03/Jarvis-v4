@@ -9,11 +9,13 @@ import tempfile
 from typing import Dict, Any, Optional
 from agents.base_agent import BaseAgent
 from ai.llm_client import LocalLLMClient
+from automation.vscode_control import VSCodeControl
 from utils.logger import logger
 
 class CodingAgent(BaseAgent):
     def __init__(self, llm_client: LocalLLMClient):
         self.llm = llm_client
+        self.vscode = VSCodeControl()
 
     @property
     def agent_name(self) -> str:
@@ -21,11 +23,27 @@ class CodingAgent(BaseAgent):
 
     @property
     def description(self) -> str:
-        return "Writes, explains, debugs, and executes Python, Java, C++, JS, React, and Unity C# code."
+        return "Writes, explains, debugs, executes code, and creates VS Code project folders."
 
     async def execute_task(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
         action = action.lower()
-        if action == "generate_code":
+        if action == "create_vscode_project":
+            folder_name = params.get("folder_name", "JARVIS_Project")
+            target_dir = params.get("target_dir")
+            language = params.get("language", "python")
+            prompt = params.get("prompt", f"Create a production quality {language} project")
+            sys_prompt = f"You are an expert {language} software developer. Generate complete production code with comments."
+            code = await self.llm.generate_response(prompt=prompt, system_prompt=sys_prompt)
+            res = self.vscode.create_project_and_code(
+                folder_name=folder_name,
+                target_dir=target_dir,
+                language=language,
+                code_content=code
+            )
+            res["code"] = code
+            return res
+
+        elif action == "generate_code":
             language = params.get("language", "python")
             prompt = params.get("prompt", "")
             sys_prompt = f"You are an expert {language} software developer. Generate clean, efficient, production quality code with comments."
