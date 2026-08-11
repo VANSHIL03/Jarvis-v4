@@ -452,12 +452,29 @@ class PlannerAgent:
                 "delegations": [{"agent": "windows_agent", "action": "launch_game", "params": {"game_name": target}}]
             }
 
-        if any(k in clean for k in ["daily news", "latest news", "news batao", "aaj ki khabar", "news dekhna hai", "hinglish news", "news sunao"]):
-            news_res = self.news_fetcher.get_hinglish_news_bulletin(salutation=sir)
+        # Category & Daily News Bulletin (Hindi & Hinglish)
+        if any(k in clean for k in ["news", "khabar", "samachar", "headlines"]):
+            category = "general"
+            if any(k in clean for k in ["gaming", "game", "games", "esports"]):
+                category = "gaming"
+            elif any(k in clean for k in ["government", "govt", "sarkari", "sarkaari", "politics", "rajneeti"]):
+                category = "government"
+            elif any(k in clean for k in ["health", "medical", "swasthya", "fitness"]):
+                category = "health"
+            elif any(k in clean for k in ["tech", "technology", "mobile", "ai", "smartphone"]):
+                category = "tech"
+            elif any(k in clean for k in ["sports", "cricket", "khel"]):
+                category = "sports"
+            elif any(k in clean for k in ["business", "finance", "share market", "economy"]):
+                category = "business"
+            elif any(k in clean for k in ["entertainment", "movie", "bollywood", "cinema"]):
+                category = "entertainment"
+
+            news_res = self.news_fetcher.get_hinglish_news_bulletin(salutation=sir, category=category, lang="hi")
             return True, {
-                "thought": "Fast-path triggered: Live Hinglish daily news bulletin.",
+                "thought": f"Fast-path triggered: Live Hindi news bulletin for category '{category}'.",
                 "speech_reply": news_res["speech_reply"],
-                "delegations": [{"agent": "browser_agent", "action": "open_website", "params": {"url": "https://news.google.com"}}]
+                "delegations": [{"agent": "browser_agent", "action": "open_website", "params": {"url": news_res["url"]}}]
             }
 
         # Reminder & Alarm scheduling
