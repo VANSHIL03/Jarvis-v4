@@ -48,7 +48,7 @@ class VectorStore:
             return np.array(emb, dtype=np.float32)
         # Fallback hash-based embedding for fallback environments
         vec = np.zeros(384, dtype=np.float32)
-        for i, char in enumerate(text.encode('utf-8')):
+        for i, char in enumerate(text):
             vec[i % 384] += ord(char)
         norm = np.linalg.norm(vec)
         return vec / (norm if norm > 0 else 1.0)
