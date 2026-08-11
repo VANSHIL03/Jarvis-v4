@@ -27,7 +27,6 @@ from automation.news_fetcher import NewsFetcher
 from automation.reminder_manager import ReminderManager
 from automation.shopping import ShoppingAutomation
 from automation.food_delivery import FoodDeliveryAutomation
-from vision.screen_watcher import ScreenWatcher
 
 class PlannerAgent:
     def __init__(
@@ -45,7 +44,6 @@ class PlannerAgent:
         self.reminder_mgr = ReminderManager()
         self.shopping = ShoppingAutomation()
         self.food_automation = FoodDeliveryAutomation()
-        self.screen_watcher = ScreenWatcher()
 
     def _get_user_salutation(self) -> str:
         """Dynamically retrieves remembered user name or defaults to Sir."""
@@ -584,15 +582,6 @@ class PlannerAgent:
                 "thought": f"Fast-path triggered: {platform} food delivery for '{target_food}'.",
                 "speech_reply": f"Ji {sir}, maine '{target_food}' {platform} par search karke Add button click kar diya hai. Maine restaurant page open kar diya hai, kripya aage ki payment complete kar lijiye!",
                 "delegations": [{"agent": "browser_agent", "action": "open_url", "params": {"url": res["url"]}}]
-            }
-
-        # Real-Time Screen Vision & Companion Perception Fast-Path
-        if any(k in clean for k in ["see my screen", "look at my screen", "dekho screen", "screen pe dekho", "screen pe kya hai", "what is on my screen", "screen dekh ke batao", "screen dekho", "screen dekh ke help karo"]):
-            speech_reply = self.screen_watcher.get_screen_speech_summary(salutation=sir)
-            return True, {
-                "thought": "Fast-path triggered: Autonomous screen perception summary.",
-                "speech_reply": speech_reply,
-                "delegations": [{"agent": "vision_agent", "action": "read_screen_ocr", "params": {}}]
             }
 
         if any(k in clean for k in ["new project", "nayi project", "project pe kaam", "start project", "create project"]):

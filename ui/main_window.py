@@ -141,38 +141,13 @@ class JarvisMainWindow(QMainWindow):
         """)
         settings_btn.clicked.connect(self._open_settings)
 
-        # Live Screen Share Companion Indicator
-        self.screen_share_btn = QPushButton("👁️ SCREEN SHARE: ACTIVE")
-        self.screen_share_btn.setFixedSize(170, 32)
-        self.screen_share_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(0, 255, 170, 20);
-                border: 1px solid #00ffaa;
-                color: #00ffaa;
-                font-weight: bold;
-                font-size: 10px;
-                border-radius: 4px;
-                font-family: 'Consolas', monospace;
-            }
-            QPushButton:hover {
-                background-color: rgba(0, 255, 170, 50);
-            }
-        """)
-
         header_hbox.addWidget(title_lbl)
         header_hbox.addStretch()
-        header_hbox.addWidget(self.screen_share_btn)
         header_hbox.addWidget(mic_lbl)
         header_hbox.addWidget(self.mic_level_bar)
         header_hbox.addWidget(self.mic_btn)
         header_hbox.addWidget(settings_btn)
         main_layout.addLayout(header_hbox)
-
-        # Background Screen Companion Watcher Timer (4 seconds)
-        self._last_detected_error = ""
-        self.screen_companion_timer = QTimer(self)
-        self.screen_companion_timer.timeout.connect(self._run_screen_companion_check)
-        self.screen_companion_timer.start(4000)
 
         # ═══ Center: Arc Reactor ═══
         reactor_container = QHBoxLayout()
@@ -505,25 +480,3 @@ class JarvisMainWindow(QMainWindow):
         if self.tts_engine:
             threading.Thread(target=self.tts_engine.speak, args=(reply,), daemon=True).start()
         self.sys_widget.set_status("ERROR")
-
-    def _run_screen_companion_check(self):
-        """Background continuous screen vision check for autonomous user companion assistance."""
-        try:
-            if not self.planner_agent or not hasattr(self.planner_agent, 'screen_watcher'):
-                return
-            summary = self.planner_agent.screen_watcher.analyze_current_screen()
-            w_title = summary.get("window_title", "")
-            text = summary.get("ocr_text", "")
-
-            # Check if new error appears on user screen
-            if any(e in text.lower() for e in ["traceback", "syntaxerror", "exception", "unhandled", "fatal error"]):
-                if text != self._last_detected_error:
-                    self._last_detected_error = text
-                    sir = self._get_salutation()
-                    alert_msg = f"Ji {sir}, main dekh raha hoon aapki screen par '{w_title}' mein ek error aaya hai. Main solution bata sakta hoon, kripya mujhe kehye 'Jarvis help me with error'."
-                    self.chat_widget.append_system_log(f"Screen Vision Alert: Error detected in '{w_title}'")
-                    self.chat_widget.append_jarvis_message(alert_msg)
-                    if self.tts_engine:
-                        threading.Thread(target=self.tts_engine.speak, args=(alert_msg,), daemon=True).start()
-        except Exception:
-            pass
