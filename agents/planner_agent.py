@@ -559,8 +559,19 @@ class PlannerAgent:
 
             if not target_food or len(target_food) < 2:
                 facts = self.memory.get_all_facts()
-                fav = next((f["value_data"] for f in facts if "favorite" in f.get("key_name", "").lower()), None)
-                target_food = fav if fav else "Pav Bhaji"
+                # Strict check for favorite food / khana key
+                fav_food_fact = next(
+                    (f["value_data"] for f in facts if any(k in f.get("key_name", "").lower() for k in ["favorite_food", "favorite_khana", "favorite_dish"])),
+                    None
+                )
+                if fav_food_fact:
+                    target_food = fav_food_fact
+                else:
+                    return True, {
+                        "thought": "Fast-path triggered: Favorite food unknown, asking user to learn.",
+                        "speech_reply": f"Ji {sir}, mujhe abhi aapka favourite food nahi pata. Kripya mujhe bataiye aapka favourite khana kaunsa hai, main yaad rakh loonga!",
+                        "delegations": []
+                    }
 
             if platform == "Zomato":
                 res = self.food_automation.search_zomato(target_food)
