@@ -4,6 +4,7 @@ Parses user intent, performs silent chain-of-thought reasoning (<thought>), dele
 """
 
 import re
+from pathlib import Path
 from typing import Dict, Any, List
 from config.prompts import PLANNER_AGENT_PROMPT
 from ai.llm_client import LocalLLMClient
@@ -472,7 +473,7 @@ class PlannerAgent:
 
         if is_folder_req:
             folder_name = "New_Folder"
-            name_match = re.search(r"([a-zA-Z0-9_\-]+)\s+(?:naam|name)\s+(?:se|ka)?", clean)
+            name_match = re.search(r"([a-zA-Z0-9_\-]+)\s+(?:k\s+|ke\s+|ka\s+|ki\s+)?(?:naam|name)\s+(?:se|ka)?", clean)
             if not name_match:
                 name_match = re.search(r"(?:naam|name|named)\s+(?:se|ka)?\s*([a-zA-Z0-9_\-]+)", clean)
             if not name_match:
@@ -482,7 +483,7 @@ class PlannerAgent:
 
             if name_match:
                 val = name_match.group(1).strip()
-                stop_words = ["a", "an", "the", "ek", "one", "banao", "baano", "bnao", "bana", "create", "make", "nayi", "new", "me", "mein", "par", "pe", "dektop", "desktop", "naam", "name", "se", "folder"]
+                stop_words = ["a", "an", "the", "ek", "one", "banao", "baano", "bnao", "bana", "create", "make", "nayi", "new", "me", "mein", "par", "pe", "dektop", "desktop", "naam", "name", "se", "folder", "k", "ke", "ka", "ki"]
                 if val.lower() not in stop_words:
                     folder_name = val.capitalize()
 
