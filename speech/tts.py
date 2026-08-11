@@ -5,6 +5,7 @@ Guarantees mic state recovery after speech completes.
 """
 
 import os
+import re
 import time
 import asyncio
 import tempfile
@@ -46,6 +47,10 @@ class TextToSpeech:
         clean_text = text.strip()
         if not clean_text:
             return
+
+        # Ensure TTS speaks "Jarvis" naturally as a word instead of spelling J - A - R - V - I - S
+        clean_text = re.sub(r"J\.A\.R\.V\.I\.S\.", "Jarvis", clean_text, flags=re.I)
+        clean_text = re.sub(r"\bJ\s+A\s+R\s+V\s+I\s+S\b", "Jarvis", clean_text, flags=re.I)
 
         self._is_speaking = True
         logger.info(f"JARVIS Speaking: '{clean_text}'")

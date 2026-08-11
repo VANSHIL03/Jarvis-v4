@@ -498,10 +498,10 @@ class PlannerAgent:
             }
 
         # Amazon & Flipkart E-Commerce Shopping Automation
-        if any(k in clean for k in ["amazon", "flipkart", "add to cart", "buy product", "order product"]) or (any(k in clean for k in ["order", "buy", "khareedna"]) and any(p in clean for p in ["amazon", "flipkart", "online", "item", "product"])):
+        if any(k in clean for k in ["amazon", "flipkart", "add to cart", "buy product", "order product", "kharidna", "kharidne", "chahiye"]) or (any(k in clean for k in ["order", "buy", "khareedna", "kharidna", "chahiye"]) and any(p in clean for p in ["amazon", "flipkart", "online", "item", "product", "cable", "mouse", "shoes", "laptop", "phone"])):
             platform = "Flipkart" if "flipkart" in clean else "Amazon"
             prod_clean = clean
-            words_to_remove = ["jarvis", "order", "buy", "add to cart", "add", "to", "cart", "from", "on", "se", "par", "amazon", "flipkart", "karo", "kro", "please", "me", "khareedna"]
+            words_to_remove = ["jarvis", "order", "buy", "add to cart", "add", "to", "cart", "from", "on", "se", "par", "pe", "p", "amazon", "flipkart", "karo", "kro", "please", "me", "khareedna", "kharidna", "kharidne", "kharid", "chahiye", "hai", "h", "ho", "mujhe", "mujhko", "mera", "meri", "bhi", "ek", "one"]
             for w in words_to_remove:
                 prod_clean = re.sub(r"\b" + re.escape(w) + r"\b", "", prod_clean)
             product_name = re.sub(r"\s+", " ", prod_clean).strip() or "trending items"
