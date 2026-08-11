@@ -512,7 +512,7 @@ class PlannerAgent:
 
             return True, {
                 "thought": f"Fast-path triggered: {platform} shopping for '{product_name}'.",
-                "speech_reply": f"Ji {sir}, aapka item '{product_name}' {platform} par Add to Cart ho gaya hai. Maine product page open kar diya hai, kripya aage ki payment complete kar lijiye!",
+                "speech_reply": f"Ji {sir}, maine '{product_name}' {platform} par search karke Add to Cart button click kar diya hai. Maine product page open kar diya hai, kripya aage ki payment complete kar lijiye!",
                 "delegations": [{"agent": "browser_agent", "action": "open_url", "params": {"url": res["url"]}}]
             }
 
@@ -552,7 +552,7 @@ class PlannerAgent:
 
             return True, {
                 "thought": f"Fast-path triggered: {platform} food delivery for '{target_food}'.",
-                "speech_reply": f"Ji {sir}, aapka favourite '{target_food}' {platform} par Add to Cart kar diya hai. Maine restaurant cart page open kar diya hai, kripya aage ki payment complete kar lijiye!",
+                "speech_reply": f"Ji {sir}, maine '{target_food}' {platform} par search karke Add button click kar diya hai. Maine restaurant page open kar diya hai, kripya aage ki payment complete kar lijiye!",
                 "delegations": [{"agent": "browser_agent", "action": "open_url", "params": {"url": res["url"]}}]
             }
 
