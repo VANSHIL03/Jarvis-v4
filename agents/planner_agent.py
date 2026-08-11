@@ -24,6 +24,7 @@ from agents.gaming_agent import GamingAgent
 from agents.git_agent import GitAgent
 
 from automation.news_fetcher import NewsFetcher
+from automation.reminder_manager import ReminderManager
 
 class PlannerAgent:
     def __init__(
@@ -38,6 +39,7 @@ class PlannerAgent:
         self.safety = safety_manager
         self.sub_agents = agents
         self.news_fetcher = NewsFetcher()
+        self.reminder_mgr = ReminderManager()
 
     def _get_user_salutation(self) -> str:
         """Dynamically retrieves remembered user name or defaults to Sir."""
@@ -454,6 +456,30 @@ class PlannerAgent:
                 "speech_reply": news_res["speech_reply"],
                 "delegations": [{"agent": "browser_agent", "action": "open_website", "params": {"url": "https://news.google.com"}}]
             }
+
+        # Reminder & Alarm scheduling
+        if any(k in clean for k in ["remind me", "yaad dilana", "reminder", "alarm"]):
+            parsed = self.reminder_mgr.parse_time_and_task(clean)
+            if parsed:
+                task_desc, delay_sec = parsed
+                res = self.reminder_mgr.add_reminder(task_desc, delay_sec)
+                return True, {
+                    "thought": f"Fast-path triggered: Scheduled reminder for {task_desc} in {delay_sec}s.",
+                    "speech_reply": f"Ji {sir}, maine {res['target_time']} par '{task_desc}' ka reminder schedule kar diya hai. Audio alarm aur notification alert time par active ho jayega.",
+                    "delegations": []
+                }
+            elif "reminders" in clean or "show reminder" in clean:
+                pending = self.reminder_mgr.get_pending_reminders()
+                if pending:
+                    items_str = ", ".join([f"'{p['task']}' at {p['time']}" for p in pending])
+                    msg = f"Ji {sir}, aapke active reminders yeh hain: {items_str}."
+                else:
+                    msg = f"Ji {sir}, abhi koi pending reminders active nahi hain."
+                return True, {
+                    "thought": "Fast-path triggered: List active reminders.",
+                    "speech_reply": msg,
+                    "delegations": []
+                }
 
         if any(k in clean for k in ["new project", "nayi project", "project pe kaam", "start project", "create project"]):
             return True, {

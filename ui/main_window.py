@@ -185,6 +185,20 @@ class JarvisMainWindow(QMainWindow):
         if self.tts_engine:
             threading.Thread(target=self.tts_engine.speak, args=(welcome_text,), daemon=True).start()
 
+        # Register Reminder Trigger Callback
+        try:
+            if self.planner_agent and hasattr(self.planner_agent, 'reminder_mgr'):
+                def _speak_reminder(msg: str):
+                    if self.tts_engine:
+                        threading.Thread(target=self.tts_engine.speak, args=(msg,), daemon=True).start()
+
+                def _ui_reminder(msg: str):
+                    self.chat_widget.append_jarvis_message(msg)
+
+                self.planner_agent.reminder_mgr.set_callbacks(_speak_reminder, _ui_reminder)
+        except Exception:
+            pass
+
     @Slot(float)
     def _on_mic_level(self, rms: float):
         """Updates real-time microphone level bar and animates Arc Reactor glow as user speaks."""
