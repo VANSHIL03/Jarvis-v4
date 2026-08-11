@@ -16,6 +16,7 @@ from PySide6.QtCore import Qt, QTimer, Signal, Slot, QSize
 from PySide6.QtGui import QFont, QColor, QIcon
 
 from ui.components.arc_reactor_widget import ArcReactorWidget
+from ui.components.stark_hud_widget import StarkHudWidget
 from ui.components.chat_widget import ChatWidget
 from ui.components.sys_monitor_widget import SystemMonitorWidget
 from utils.system_monitor import SystemMonitor
@@ -149,14 +150,19 @@ class JarvisMainWindow(QMainWindow):
         header_hbox.addWidget(settings_btn)
         main_layout.addLayout(header_hbox)
 
-        # ═══ Center: Arc Reactor ═══
-        reactor_container = QHBoxLayout()
-        reactor_container.addStretch()
-        self.arc_reactor = ArcReactorWidget()
-        self.arc_reactor.setFixedSize(420, 420)
-        reactor_container.addWidget(self.arc_reactor)
-        reactor_container.addStretch()
-        main_layout.addLayout(reactor_container, stretch=5)
+        # ═══ Center: Stark Industries Interactive Holographic HUD ═══
+        hud_container = QHBoxLayout()
+        hud_container.addStretch()
+        self.stark_hud = StarkHudWidget()
+        self.stark_hud.setMinimumSize(850, 480)
+        self.stark_hud.node_clicked_signal.connect(self._on_hud_node_clicked)
+        hud_container.addWidget(self.stark_hud)
+        hud_container.addStretch()
+        main_layout.addLayout(hud_container, stretch=6)
+
+        # Connect TTS amplitude callback to Stark HUD for reactive pulsing
+        if self.tts_engine:
+            self.tts_engine.set_amplitude_callback(self.stark_hud.set_amplitude)
 
         # ═══ Bottom: Chat Feed ═══
         self.chat_widget = ChatWidget()
@@ -398,6 +404,24 @@ class JarvisMainWindow(QMainWindow):
     def _update_hardware_metrics(self):
         data = self.sys_monitor.get_full_telemetry()
         self.sys_widget.update_metrics(data)
+        if hasattr(self, 'stark_hud'):
+            self.stark_hud.update_telemetry(data)
+
+    def _on_hud_node_clicked(self, node_id: str):
+        """Triggers direct automated commands when clicking interactive HUD orbital nodes."""
+        node_commands = {
+            "food": "swiggy se mera favourite food order kro",
+            "shopping": "amazon pe lan cable search krke add to cart kroo",
+            "news": "jarvis daily news batao",
+            "games": "pc me installed games scan karo",
+            "clean": "system memory clean karo",
+            "mic": "toggle mic"
+        }
+        cmd = node_commands.get(node_id)
+        if cmd == "toggle mic":
+            self._toggle_mic()
+        elif cmd:
+            self._on_user_message(cmd)
 
     def _get_salutation(self) -> str:
         """Dynamically retrieves remembered user name or defaults to Sir."""
