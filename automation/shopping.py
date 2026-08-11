@@ -57,3 +57,37 @@ class ShoppingAutomation:
             "url": target_url,
             "speech_reply": f"Sir Vanshil, aapka item '{product_name}' Flipkart par search karke Add to Cart page open kar diya hai. Kripya payment complete kijiye!"
         }
+
+    def open_amazon_login(self) -> Dict[str, Any]:
+        """Navigates to Amazon Sign-In page."""
+        url = "https://www.amazon.in/ap/signin"
+        try:
+            subprocess.Popen(f'start "" "{url}"', shell=True)
+            status = "success"
+        except Exception as e:
+            logger.error(f"Failed to open Amazon Sign-In page: {e}")
+            status = "error"
+
+        return {
+            "status": status,
+            "platform": "Amazon",
+            "url": url,
+            "speech_reply": "Sir Vanshil, maine Amazon sign in page open kar diya hai. Kripya login credentials or OTP enter karke login complete kar lijiye."
+        }
+
+    def open_flipkart_login(self) -> Dict[str, Any]:
+        """Navigates to Flipkart Login page."""
+        url = "https://www.flipkart.com/account/login"
+        try:
+            subprocess.Popen(f'start "" "{url}"', shell=True)
+            status = "success"
+        except Exception as e:
+            logger.error(f"Failed to open Flipkart Login page: {e}")
+            status = "error"
+
+        return {
+            "status": status,
+            "platform": "Flipkart",
+            "url": url,
+            "speech_reply": "Sir Vanshil, maine Flipkart login page open kar diya hai. Kripya login credentials or OTP enter karke login complete kar lijiye."
+        }

@@ -483,6 +483,18 @@ class PlannerAgent:
                     "delegations": []
                 }
 
+        # Amazon & Flipkart Login Navigation
+        if "login" in clean and ("amazon" in clean or "flipkart" in clean):
+            if "flipkart" in clean:
+                res = self.shopping.open_flipkart_login()
+            else:
+                res = self.shopping.open_amazon_login()
+            return True, {
+                "thought": f"Fast-path triggered: {res['platform']} login page.",
+                "speech_reply": f"Ji {sir}, maine {res['platform']} login page open kar diya hai. Kripya credentials ya OTP enter karke login complete kar lijiye.",
+                "delegations": [{"agent": "browser_agent", "action": "open_url", "params": {"url": res["url"]}}]
+            }
+
         # Amazon & Flipkart E-Commerce Shopping Automation
         if any(k in clean for k in ["amazon", "flipkart", "add to cart", "buy product", "order product"]) or (any(k in clean for k in ["order", "buy", "khareedna"]) and any(p in clean for p in ["amazon", "flipkart", "online", "item", "product"])):
             platform = "Flipkart" if "flipkart" in clean else "Amazon"
