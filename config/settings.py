@@ -40,8 +40,8 @@ class Settings(BaseSettings):
     WHISPER_DEVICE: str = "cuda"
     WHISPER_COMPUTE_TYPE: str = "float16"
     TTS_ENGINE: str = "edge-tts"
-    TTS_VOICE: str = "en-GB-ThomasNeural"  # Refined British AI voice (Paul Bettany / Iron Man 2 J.A.R.V.I.S.)
-    SPEECH_RATE: int = 160  # Polished, cultured speech rate
+    TTS_VOICE: str = "hi-IN-MadhurNeural"  # Deep Indian male Neural AI voice — fluent Hinglish & English
+    SPEECH_RATE: int = 150  # Natural conversational speech rate
 
     # Vision Settings
     WEBCAM_INDEX: int = 0
