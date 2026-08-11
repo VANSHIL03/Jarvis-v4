@@ -166,8 +166,21 @@ class JarvisMainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self.sys_widget, 1)
         self.statusBar().setStyleSheet("QStatusBar { background: transparent; border: none; }")
 
-        # Initial Welcome Message
-        welcome_text = "Good day, Sir. Systems are online and operating at nominal efficiency."
+        # Initial Interactive Welcome Message
+        name = "Vanshil"
+        try:
+            if self.planner_agent:
+                facts = self.planner_agent.memory.get_all_facts()
+                name_fact = next((f["value_data"] for f in facts if f.get("key_name") == "user_name"), None)
+                if name_fact:
+                    name = name_fact.split()[0]
+        except Exception:
+            pass
+
+        welcome_text = (
+            f"Hi {name}! What can I do for you today? "
+            "Would you like to play a game, check the daily news, or start working on a new project?"
+        )
         self.chat_widget.append_jarvis_message(welcome_text)
         if self.tts_engine:
             threading.Thread(target=self.tts_engine.speak, args=(welcome_text,), daemon=True).start()

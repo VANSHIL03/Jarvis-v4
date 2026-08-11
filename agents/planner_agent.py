@@ -420,6 +420,28 @@ class PlannerAgent:
                 "delegations": [{"agent": "windows_agent", "action": "lock_pc", "params": {}}]
             }
 
+        # Suggestions: Play game, Daily news, New project
+        if any(k in clean for k in ["play game", "play a game", "game khelna hai", "game khele", "khelna hai"]):
+            return True, {
+                "thought": "Fast-path triggered: Game suggestion response.",
+                "speech_reply": f"Ji {sir}, kya aap Steam, Tic Tac Toe, ya koi browser game khelna chahte hain? Bas mujhe naam bataiye!",
+                "delegations": []
+            }
+
+        if any(k in clean for k in ["daily news", "latest news", "news batao", "aaj ki khabar", "news dekhna hai"]):
+            return True, {
+                "thought": "Fast-path triggered: Opening news portal.",
+                "speech_reply": f"Ji {sir}, main aapke liye latest daily news headlines web browser par khol raha hoon.",
+                "delegations": [{"agent": "browser_agent", "action": "open_website", "params": {"url": "https://news.google.com"}}]
+            }
+
+        if any(k in clean for k in ["new project", "nayi project", "project pe kaam", "start project", "create project"]):
+            return True, {
+                "thought": "Fast-path triggered: New project assistant.",
+                "speech_reply": f"Ji {sir}, aap kis language ya framework (Python, Java, React, C++) mein project banana chahte hain? Mujhe bataiye, main setup kar deta hoon!",
+                "delegations": []
+            }
+
         return False, {}
 
     async def process_user_request(self, user_input: str, session_id: str = "default") -> Dict[str, Any]:
