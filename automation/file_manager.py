@@ -10,10 +10,13 @@ from utils.logger import logger
 
 class FileManager:
     def create_folder(self, folder_path: str) -> bool:
-        """Creates directory folder path."""
+        """Creates directory folder path. Resolves relative path to Desktop if not absolute."""
         try:
-            Path(folder_path).mkdir(parents=True, exist_ok=True)
-            logger.info(f"Folder created: {folder_path}")
+            path = Path(folder_path)
+            if not path.is_absolute():
+                path = Path.home() / "Desktop" / path.name
+            path.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Folder created on Desktop: {path}")
             return True
         except Exception as e:
             logger.error(f"Error creating folder '{folder_path}': {e}")

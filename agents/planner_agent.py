@@ -466,6 +466,30 @@ class PlannerAgent:
                 "delegations": [{"agent": "windows_agent", "action": "launch_game", "params": {"game_name": target}}]
             }
 
+        # Explicit Desktop Folder Creation (English & Hinglish: "star naam se folder banao dektop pe")
+        if any(k in clean for k in ["folder banao", "folder create", "create folder", "make folder"]) or ("folder" in clean and any(v in clean for v in ["banao", "create", "make"])):
+            folder_name = "New_Folder"
+            name_match = re.search(r"([a-zA-Z0-9_\-]+)\s+(?:naam|name)\s+(?:se|ka)?\s*(?:banao)?\s*folder", clean)
+            if not name_match:
+                name_match = re.search(r"named\s+([a-zA-Z0-9_\-]+)", clean)
+            if not name_match:
+                name_match = re.search(r"([a-zA-Z0-9_\-]+)\s+folder", clean)
+            if not name_match:
+                name_match = re.search(r"folder\s+([a-zA-Z0-9_\-]+)", clean)
+
+            if name_match:
+                val = name_match.group(1).strip()
+                if val.lower() not in ["a", "an", "the", "banao", "create", "make", "nayi", "new", "me", "mein", "par", "pe", "dektop", "desktop"]:
+                    folder_name = val.capitalize()
+
+            desktop_path = Path.home() / "Desktop" / folder_name
+            desktop_path.mkdir(parents=True, exist_ok=True)
+            return True, {
+                "thought": f"Fast-path triggered: Explicit Desktop folder creation for '{folder_name}'.",
+                "speech_reply": f"Ji {sir}, Desktop par '{folder_name}' naam se folder bana diya hai!",
+                "delegations": [{"agent": "file_agent", "action": "create_folder", "params": {"folder_path": str(desktop_path)}}]
+            }
+
         # Category & Daily News Bulletin (Hindi & Hinglish)
         if any(k in clean for k in ["news", "khabar", "samachar", "headlines"]):
             category = "general"
