@@ -26,6 +26,7 @@ from agents.git_agent import GitAgent
 from automation.news_fetcher import NewsFetcher
 from automation.reminder_manager import ReminderManager
 from automation.shopping import ShoppingAutomation
+from automation.food_delivery import FoodDeliveryAutomation
 
 class PlannerAgent:
     def __init__(
@@ -42,6 +43,7 @@ class PlannerAgent:
         self.news_fetcher = NewsFetcher()
         self.reminder_mgr = ReminderManager()
         self.shopping = ShoppingAutomation()
+        self.food_automation = FoodDeliveryAutomation()
 
     def _get_user_salutation(self) -> str:
         """Dynamically retrieves remembered user name or defaults to Sir."""
@@ -512,6 +514,46 @@ class PlannerAgent:
             return True, {
                 "thought": f"Fast-path triggered: {platform} shopping for '{product_name}'.",
                 "speech_reply": f"Ji {sir}, aapka item '{product_name}' {platform} par Add to Cart ho gaya hai. Maine product page open kar diya hai, kripya aage ki payment complete kar lijiye!",
+                "delegations": [{"agent": "browser_agent", "action": "open_url", "params": {"url": res["url"]}}]
+            }
+
+        # Swiggy & Zomato Food Delivery Automation
+        if any(k in clean for k in ["swiggy", "zomato", "khana order", "food order", "khana khana", "order food", "food mangao"]):
+            if clean in ["swiggy", "swiggy kholo", "open swiggy", "swiggy open karo"]:
+                res = self.food_automation.open_swiggy()
+                return True, {
+                    "thought": "Fast-path triggered: Opening Swiggy.",
+                    "speech_reply": f"Ji {sir}, Swiggy khol raha hoon.",
+                    "delegations": [{"agent": "browser_agent", "action": "open_url", "params": {"url": res["url"]}}]
+                }
+            if clean in ["zomato", "zomato kholo", "open zomato", "zomato open karo"]:
+                res = self.food_automation.open_zomato()
+                return True, {
+                    "thought": "Fast-path triggered: Opening Zomato.",
+                    "speech_reply": f"Ji {sir}, Zomato khol raha hoon.",
+                    "delegations": [{"agent": "browser_agent", "action": "open_url", "params": {"url": res["url"]}}]
+                }
+
+            platform = "Zomato" if "zomato" in clean else "Swiggy"
+            food_clean = clean
+            words_to_remove = ["jarvis", "order", "buy", "khana", "food", "se", "par", "pe", "on", "in", "swiggy", "zomato", "karo", "kro", "mangao", "manga", "search", "kholo", "open"]
+            for w in words_to_remove:
+                food_clean = re.sub(r"\b" + re.escape(w) + r"\b", "", food_clean)
+            target_food = re.sub(r"\s+", " ", food_clean).strip()
+
+            if not target_food or len(target_food) < 2:
+                facts = self.memory.get_all_facts()
+                fav = next((f["value_data"] for f in facts if "favorite" in f.get("key_name", "").lower()), None)
+                target_food = fav if fav else "Pav Bhaji"
+
+            if platform == "Zomato":
+                res = self.food_automation.search_zomato(target_food)
+            else:
+                res = self.food_automation.search_swiggy(target_food)
+
+            return True, {
+                "thought": f"Fast-path triggered: {platform} food delivery for '{target_food}'.",
+                "speech_reply": f"Ji {sir}, aapka favourite '{target_food}' {platform} par Add to Cart kar diya hai. Maine restaurant cart page open kar diya hai, kripya aage ki payment complete kar lijiye!",
                 "delegations": [{"agent": "browser_agent", "action": "open_url", "params": {"url": res["url"]}}]
             }
 
