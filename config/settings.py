@@ -40,8 +40,8 @@ class Settings(BaseSettings):
     WHISPER_DEVICE: str = "cuda"
     WHISPER_COMPUTE_TYPE: str = "float16"
     TTS_ENGINE: str = "edge-tts"
-    TTS_VOICE: str = "hi-IN-MadhurNeural"  # Indian male Neural AI voice — perfect for Hinglish & Hindi
-    SPEECH_RATE: int = 150  # Natural conversational speech rate
+    TTS_VOICE: str = "en-GB-RyanNeural"  # British male AI voice — authentic Iron Man's J.A.R.V.I.S.
+    SPEECH_RATE: int = 175  # Deliberate, authoritative tone
 
     # Vision Settings
     WEBCAM_INDEX: int = 0
