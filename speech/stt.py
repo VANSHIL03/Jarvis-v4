@@ -52,7 +52,7 @@ class SpeechToText:
                 logger.error(f"Faster-Whisper CPU fallback failed: {ex}")
 
     def transcribe_audio_file(self, audio_path: str) -> str:
-        """Transcribes an audio file to text."""
+        """Transcribes an audio file to text with automatic CPU fallback on CUDA error."""
         if self.model:
             try:
                 segments, info = self.model.transcribe(
@@ -65,9 +65,22 @@ class SpeechToText:
                 text = " ".join([segment.text for segment in segments]).strip()
                 return text
             except Exception as e:
-                logger.warning(f"Whisper transcription error: {e}")
+                logger.warning(f"Faster-Whisper CUDA runtime error ({e}). Re-initializing STT on CPU...")
+                try:
+                    from faster_whisper import WhisperModel
+                    self.model = WhisperModel(settings.WHISPER_MODEL, device="cpu", compute_type="int8")
+                    segments, info = self.model.transcribe(
+                        audio_path,
+                        beam_size=5,
+                        vad_filter=True,
+                        vad_parameters=dict(min_silence_duration_ms=500),
+                        initial_prompt="Hinglish voice command for JARVIS"
+                    )
+                    return " ".join([segment.text for segment in segments]).strip()
+                except Exception as ex:
+                    logger.error(f"CPU transcription fallback failed: {ex}")
 
-        # SpeechRecognition fallback (only if Faster-Whisper model is unavailable)
+        # SpeechRecognition fallback (only if Faster-Whisper is completely unavailable)
         try:
             import speech_recognition as sr
             r = sr.Recognizer()
