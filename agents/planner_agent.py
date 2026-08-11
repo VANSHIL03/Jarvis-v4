@@ -466,20 +466,24 @@ class PlannerAgent:
                 "delegations": [{"agent": "windows_agent", "action": "launch_game", "params": {"game_name": target}}]
             }
 
-        # Explicit Desktop Folder Creation (English & Hinglish: "star naam se folder banao dektop pe")
-        if any(k in clean for k in ["folder banao", "folder create", "create folder", "make folder"]) or ("folder" in clean and any(v in clean for v in ["banao", "create", "make"])):
+        # Explicit Desktop Folder Creation (English & Hinglish: "star naam se folder banao dektop pe" / "baano")
+        folder_verbs = ["banao", "baano", "bnao", "bana", "banaye", "banayo", "create", "make", "generate", "build"]
+        is_folder_req = ("folder" in clean or "directory" in clean) and (any(v in clean for v in folder_verbs) or "dektop" in clean or "desktop" in clean)
+
+        if is_folder_req:
             folder_name = "New_Folder"
-            name_match = re.search(r"([a-zA-Z0-9_\-]+)\s+(?:naam|name)\s+(?:se|ka)?\s*(?:banao)?\s*folder", clean)
+            name_match = re.search(r"([a-zA-Z0-9_\-]+)\s+(?:naam|name)\s+(?:se|ka)?", clean)
             if not name_match:
-                name_match = re.search(r"named\s+([a-zA-Z0-9_\-]+)", clean)
+                name_match = re.search(r"(?:naam|name|named)\s+(?:se|ka)?\s*([a-zA-Z0-9_\-]+)", clean)
+            if not name_match:
+                name_match = re.search(r"folder\s+(?:banao|baano|bnao|bana|create|make)?\s*([a-zA-Z0-9_\-]+)", clean)
             if not name_match:
                 name_match = re.search(r"([a-zA-Z0-9_\-]+)\s+folder", clean)
-            if not name_match:
-                name_match = re.search(r"folder\s+([a-zA-Z0-9_\-]+)", clean)
 
             if name_match:
                 val = name_match.group(1).strip()
-                if val.lower() not in ["a", "an", "the", "banao", "create", "make", "nayi", "new", "me", "mein", "par", "pe", "dektop", "desktop"]:
+                stop_words = ["a", "an", "the", "ek", "one", "banao", "baano", "bnao", "bana", "create", "make", "nayi", "new", "me", "mein", "par", "pe", "dektop", "desktop", "naam", "name", "se", "folder"]
+                if val.lower() not in stop_words:
                     folder_name = val.capitalize()
 
             desktop_path = Path.home() / "Desktop" / folder_name
