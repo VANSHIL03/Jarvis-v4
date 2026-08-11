@@ -53,9 +53,9 @@ class JarvisMainWindow(QMainWindow):
         self.voice_text_signal.connect(self._on_voice_text)
         self.mic_level_signal.connect(self._on_mic_level)
 
-        # Connect TTS amplitude callback to arc reactor
-        if self.tts_engine:
-            self.tts_engine.set_amplitude_callback(self.arc_reactor.set_amplitude)
+        # Connect TTS amplitude callback to Stark HUD for reactive pulsing
+        if self.tts_engine and hasattr(self, 'stark_hud'):
+            self.tts_engine.set_amplitude_callback(self.stark_hud.set_amplitude)
 
         # Play authentic JARVIS startup sound
         self.sound_pack.play_welcome()
@@ -217,10 +217,11 @@ class JarvisMainWindow(QMainWindow):
         """Updates real-time microphone level bar and animates Arc Reactor glow as user speaks."""
         val = int(min(1.0, rms * 55.0) * 100)
         self.mic_level_bar.setValue(val)
-        if val > 4:
-            self.arc_reactor.set_amplitude(val / 100.0)
-        elif not self.tts_engine or not self.tts_engine.is_speaking:
-            self.arc_reactor.set_amplitude(0.05)
+        if hasattr(self, 'stark_hud'):
+            if val > 4:
+                self.stark_hud.set_amplitude(val / 100.0)
+            elif not self.tts_engine or not self.tts_engine.is_speaking:
+                self.stark_hud.set_amplitude(0.05)
 
     # ─── Mic Toggle ───
     def _toggle_mic(self):
