@@ -19,6 +19,7 @@ from ui.components.arc_reactor_widget import ArcReactorWidget
 from ui.components.chat_widget import ChatWidget
 from ui.components.sys_monitor_widget import SystemMonitorWidget
 from utils.system_monitor import SystemMonitor
+from utils.sound_pack import SoundPackManager
 from utils.logger import logger
 
 
@@ -39,6 +40,7 @@ class JarvisMainWindow(QMainWindow):
         # Mic state
         self._mic_active = True
         self._listening = False
+        self.sound_pack = SoundPackManager()
 
         self.setWindowTitle("J.A.R.V.I.S. v4 - Advanced Windows Desktop Assistant")
         self.resize(1200, 900)
@@ -53,6 +55,9 @@ class JarvisMainWindow(QMainWindow):
         # Connect TTS amplitude callback to arc reactor
         if self.tts_engine:
             self.tts_engine.set_amplitude_callback(self.arc_reactor.set_amplitude)
+
+        # Play authentic JARVIS startup sound
+        self.sound_pack.play_welcome()
 
         # Hardware telemetry timer (1 sec)
         self.telemetry_timer = QTimer(self)
