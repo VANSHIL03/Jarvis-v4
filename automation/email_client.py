@@ -63,9 +63,19 @@ class EmailClient:
                 for response_part in msg_data:
                     if isinstance(response_part, tuple):
                         msg = email.message_from_bytes(response_part[1])
-                        subject = msg.get("subject", "No Subject")
-                        sender = msg.get("from", "Unknown Sender")
-                        emails_list.append({"sender": sender, "subject": subject})
+                        raw_subject = msg.get("subject", "No Subject")
+                        raw_sender = msg.get("from", "Unknown Sender")
+
+                        clean_subject = self._decode_header_str(raw_subject)
+                        clean_sender = self._decode_header_str(raw_sender)
+
+                        # Clean sender format e.g. "Google Cloud <no-reply@google.com>" -> "Google Cloud"
+                        if "<" in clean_sender:
+                            clean_sender = clean_sender.split("<")[0].strip().strip('"').strip("'")
+                        if not clean_sender:
+                            clean_sender = "Unknown Sender"
+
+                        emails_list.append({"sender": clean_sender, "subject": clean_subject, "from": clean_sender})
             mail.logout()
         except Exception as e:
             logger.error(f"Failed to fetch unread emails: {e}")
@@ -73,3 +83,24 @@ class EmailClient:
                 return [{"from": "Google Security", "subject": "App Password Required", "date": "", "body": "Google 2FA is active. Please generate a 16-character App Password at myaccount.google.com/apppasswords."}]
 
         return emails_list
+
+    def _decode_header_str(self, header_val: str) -> str:
+        """Decodes MIME encoded header strings into readable UTF-8 text and sanitizes emojis."""
+        if not header_val:
+            return ""
+        try:
+            import re
+            from email.header import decode_header
+            decoded_parts = decode_header(header_val)
+            result = []
+            for part, encoding in decoded_parts:
+                if isinstance(part, bytes):
+                    result.append(part.decode(encoding or "utf-8", errors="ignore"))
+                else:
+                    result.append(str(part))
+            text = "".join(result).strip()
+            # Strip non-ASCII emojis / symbols that cause TTS or console encoding issues
+            clean_text = text.encode("ascii", "ignore").decode("ascii").strip()
+            return clean_text if clean_text else text
+        except Exception:
+            return str(header_val)

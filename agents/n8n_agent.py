@@ -97,13 +97,18 @@ class N8nAgent(BaseAgent):
                                 "message": "Google App Password required for 2FA."
                             }
 
-                        email_summaries = [f"From {e.get('from', 'Unknown')}: {e.get('subject', 'No Subject')}" for e in emails]
-                        summary_str = "; ".join(email_summaries)
+                        readable_list = []
+                        for i, e in enumerate(emails, 1):
+                            sender_name = e.get("sender") or e.get("from", "Unknown")
+                            subj = e.get("subject", "No Subject")
+                            readable_list.append(f"Email {i}, from {sender_name}: '{subj}'")
+
+                        formatted_speech = f"Sir, aapke inbox me {len(emails)} unread emails hain. " + ". ".join(readable_list) + "."
                         return {
                             "status": "success",
-                            "workflow_name": "Gmail Local Fallback",
+                            "workflow_name": "Gmail Reader",
                             "data": emails,
-                            "speech_reply": f"Sir, aapke unread emails yeh hain: {summary_str}",
+                            "speech_reply": formatted_speech,
                             "message": f"Retrieved {len(emails)} emails via local Email client."
                         }
                     except Exception as ex:
