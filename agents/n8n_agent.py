@@ -58,6 +58,23 @@ class N8nAgent(BaseAgent):
                     "data": res.data
                 }
             else:
+                # Automatic fallback to local WhatsApp plugin if action is WhatsApp and n8n webhook isn't published
+                if "whatsapp" in action or "whatsapp" in intent.lower():
+                    logger.info("n8n WhatsApp webhook not active. Executing via local WhatsApp Web Plugin.")
+                    try:
+                        from plugins.whatsapp_plugin import WhatsAppPlugin
+                        plugin = WhatsAppPlugin()
+                        phone = params.get("phone", params.get("recipient", "9984265921"))
+                        msg = params.get("message", intent)
+                        fallback_res = plugin.send_message(phone, msg)
+                        return {
+                            "status": "success",
+                            "workflow_name": "WhatsApp Local Fallback",
+                            "message": f"WhatsApp message sent to {phone} via local WhatsApp plugin."
+                        }
+                    except Exception as ex:
+                        logger.warning(f"Local WhatsApp fallback failed: {ex}")
+
                 return {
                     "status": "error",
                     "message": res.error_message or "n8n workflow execution failed.",

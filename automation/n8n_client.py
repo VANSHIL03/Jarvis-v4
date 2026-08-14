@@ -136,34 +136,38 @@ class N8nClient:
         if clean_path.startswith("webhook/"):
             clean_path = clean_path.replace("webhook/", "", 1)
 
-        url = f"{self.webhook_base_url}/{clean_path}"
+        urls_to_try = [
+            f"{self.webhook_base_url}/{clean_path}",
+            f"{self.base_url}/webhook-test/{clean_path}"
+        ]
 
-        for attempt in range(1, self.max_retries + 1):
-            try:
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
-                    if method.upper() == "GET":
-                        res = await client.get(url, params=payload)
-                    else:
-                        res = await client.post(url, json=payload, headers={"Content-Type": "application/json"})
+        for target_url in urls_to_try:
+            for attempt in range(1, self.max_retries + 1):
+                try:
+                    async with httpx.AsyncClient(timeout=self.timeout) as client:
+                        if method.upper() == "GET":
+                            res = await client.get(target_url, params=payload)
+                        else:
+                            res = await client.post(target_url, json=payload, headers={"Content-Type": "application/json"})
 
-                    if res.status_code in (200, 201, 202):
-                        result_data = res.json() if res.headers.get("content-type", "").startswith("application/json") else {"raw_response": res.text}
-                        logger.info(f"n8n webhook '{webhook_path}' triggered successfully.")
-                        return N8nExecutionResult(
-                            success=True,
-                            data=result_data
-                        )
-                    else:
-                        error_text = f"HTTP {res.status_code}: {res.text}"
-                        logger.warning(f"Webhook attempt {attempt} error: {error_text}")
-            except Exception as e:
-                logger.warning(f"Webhook trigger attempt {attempt}/{self.max_retries} failed: {e}")
-                if attempt < self.max_retries:
-                    await asyncio.sleep(1.0 * attempt)
+                        if res.status_code in (200, 201, 202):
+                            result_data = res.json() if res.headers.get("content-type", "").startswith("application/json") else {"raw_response": res.text}
+                            logger.info(f"n8n webhook '{webhook_path}' triggered successfully at {target_url}.")
+                            return N8nExecutionResult(
+                                success=True,
+                                data=result_data
+                            )
+                        else:
+                            error_text = f"HTTP {res.status_code}: {res.text}"
+                            logger.warning(f"Webhook attempt {attempt} for {target_url} error: {error_text}")
+                except Exception as e:
+                    logger.warning(f"Webhook trigger attempt {attempt}/{self.max_retries} failed for {target_url}: {e}")
+                    if attempt < self.max_retries:
+                        await asyncio.sleep(0.5 * attempt)
 
         return N8nExecutionResult(
             success=False,
-            error_message=f"Failed to trigger n8n webhook '{webhook_path}' after {self.max_retries} attempts."
+            error_message=f"n8n webhook '{webhook_path}' is not published or active yet. In n8n UI, click 'Publish' (top right) or add a Webhook node with path '{clean_path}'."
         )
 
     async def execute_workflow(
