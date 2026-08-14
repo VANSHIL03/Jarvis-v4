@@ -741,6 +741,8 @@ User Request: "{user_input}"
                 if target_agent_name in self.sub_agents:
                     sub_agent = self.sub_agents[target_agent_name]
                     res = await sub_agent.execute_task(action, params)
+                    if isinstance(res, dict) and res.get("speech_reply"):
+                        speech_reply = res["speech_reply"]
                     execution_results.append({
                         "agent": target_agent_name,
                         "action": action,
