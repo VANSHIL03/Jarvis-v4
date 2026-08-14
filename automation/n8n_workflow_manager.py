@@ -33,8 +33,8 @@ class N8nWorkflowManager:
         # Default built-in workflow definitions map (for zero-config local triggers)
         self.builtin_service_map: Dict[str, Dict[str, Any]] = {
             "whatsapp": {"tags": ["whatsapp", "whatsapp message", "send whatsapp", "msg on whatsapp", "whatsapp pe message"], "webhook": "whatsapp-send", "service": "WhatsApp"},
-            "email": {"tags": ["email", "gmail", "mail", "send email"], "webhook": "email-send", "service": "Email"},
-            "read_gmail": {"tags": ["read email", "check email", "inbox", "gmail padho", "unread email", "latest emails", "read gmail", "my email", "my gmail"], "webhook": "gmail-read", "service": "Gmail Reader"},
+            "read_gmail": {"tags": ["read email", "read emails", "check email", "check emails", "latest email", "latest emails", "inbox", "gmail padho", "unread email", "unread emails", "read gmail", "my email", "my gmail", "my emails"], "webhook": "gmail-read", "service": "Gmail Reader"},
+            "email": {"tags": ["send email", "bhejo email", "write email", "compose email", "email send"], "webhook": "email-send", "service": "Email"},
             "google_drive": {"tags": ["drive", "google drive", "gdrive", "upload"], "webhook": "gdrive-upload", "service": "Google Drive"},
             "github_push": {"tags": ["github", "git push", "repo"], "webhook": "github-push", "service": "GitHub"},
             "linkedin": {"tags": ["linkedin", "linkedin post", "post on linkedin"], "webhook": "linkedin-post", "service": "LinkedIn"},

@@ -75,6 +75,22 @@ class N8nAgent(BaseAgent):
                     except Exception as ex:
                         logger.warning(f"Local WhatsApp fallback failed: {ex}")
 
+                # Automatic fallback to local Email client if action is Email/Gmail and n8n webhook isn't published
+                if any(k in action or k in intent.lower() for k in ["email", "gmail", "mail"]):
+                    logger.info("n8n Email/Gmail webhook not active. Executing via local Email Client.")
+                    try:
+                        from automation.email_client import EmailClient
+                        client = EmailClient()
+                        emails = client.fetch_unread_emails(limit=3)
+                        return {
+                            "status": "success",
+                            "workflow_name": "Gmail Local Fallback",
+                            "data": emails,
+                            "message": f"Retrieved {len(emails)} emails via local Email client."
+                        }
+                    except Exception as ex:
+                        logger.warning(f"Local Email fallback failed: {ex}")
+
                 return {
                     "status": "error",
                     "message": res.error_message or "n8n workflow execution failed.",
