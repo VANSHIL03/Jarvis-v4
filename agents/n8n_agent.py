@@ -114,6 +114,22 @@ class N8nAgent(BaseAgent):
                     except Exception as ex:
                         logger.warning(f"Local Email fallback failed: {ex}")
 
+                # Automatic fallback to local LinkedIn plugin if action is LinkedIn and n8n webhook isn't published
+                if "linkedin" in action or "linkedin" in intent.lower():
+                    logger.info("n8n LinkedIn webhook not active. Executing via local LinkedIn Plugin.")
+                    try:
+                        from plugins.linkedin_plugin import LinkedInPlugin
+                        plugin = LinkedInPlugin()
+                        plugin_res = plugin.execute("post_update", {"text": intent})
+                        return {
+                            "status": "success",
+                            "workflow_name": "LinkedIn Local Fallback",
+                            "speech_reply": "Sir, maine browser me aapka LinkedIn post share composer open kar diya hai.",
+                            "message": plugin_res.get("message", "Opened LinkedIn in browser.")
+                        }
+                    except Exception as ex:
+                        logger.warning(f"Local LinkedIn fallback failed: {ex}")
+
                 return {
                     "status": "error",
                     "message": res.error_message or "n8n workflow execution failed.",
