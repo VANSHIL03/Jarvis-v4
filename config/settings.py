@@ -39,9 +39,14 @@ class Settings(BaseSettings):
     WHISPER_MODEL: str = "base"
     WHISPER_DEVICE: str = "cuda"
     WHISPER_COMPUTE_TYPE: str = "float16"
-    TTS_ENGINE: str = "edge-tts"
-    TTS_VOICE: str = "hi-IN-MadhurNeural"  # Deep Indian male Neural AI voice — fluent Hinglish & English
+    TTS_ENGINE: str = "elevenlabs"  # Default to ElevenLabs API, falls back to edge-tts / pyttsx3
+    TTS_VOICE: str = "hi-IN-MadhurNeural"  # Deep Indian male Neural AI voice
     SPEECH_RATE: int = 150  # Natural conversational speech rate
+
+    # ElevenLabs Voice Configuration
+    ELEVENLABS_API_KEY: str = ""
+    ELEVENLABS_VOICE_ID: str = "iWNf11sz1GrUE4ppxTOL"  # User's target ElevenLabs Voice ID
+    ELEVENLABS_MODEL_ID: str = "eleven_multilingual_v2"
 
     # Vision Settings
     WEBCAM_INDEX: int = 0

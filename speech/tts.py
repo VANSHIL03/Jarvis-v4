@@ -56,7 +56,11 @@ class TextToSpeech:
         logger.info(f"JARVIS Speaking: '{clean_text}'")
 
         try:
-            # 1. Primary: Edge-TTS
+            # 1. Primary Option: ElevenLabs (Target Voice ID: iWNf11sz1GrUE4ppxTOL)
+            if self._speak_elevenlabs(clean_text):
+                return
+
+            # 2. Secondary: Edge-TTS
             try:
                 import edge_tts
                 communicate = edge_tts.Communicate(clean_text, self.voice)
@@ -77,7 +81,7 @@ class TextToSpeech:
             except Exception as e:
                 logger.warning(f"Edge-TTS failed ({e}). Using pyttsx3 fallback.")
 
-            # 2. Fallback: Windows SAPI5 pyttsx3
+            # 3. Offline Fallback: Windows SAPI5 pyttsx3
             self._speak_pyttsx3(clean_text)
 
         finally:
@@ -85,6 +89,48 @@ class TextToSpeech:
             self._is_speaking = False
             if self.on_amplitude_callback:
                 self.on_amplitude_callback(0.0)
+
+    def _speak_elevenlabs(self, text: str) -> bool:
+        """Synthesizes speech using ElevenLabs API with Voice ID (iWNf11sz1GrUE4ppxTOL)."""
+        api_key = settings.ELEVENLABS_API_KEY or os.getenv("ELEVENLABS_API_KEY", "")
+        voice_id = settings.ELEVENLABS_VOICE_ID or "iWNf11sz1GrUE4ppxTOL"
+
+        if not api_key:
+            return False
+
+        try:
+            import httpx
+            url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+            headers = {
+                "Accept": "audio/mpeg",
+                "Content-Type": "application/json",
+                "xi-api-key": api_key
+            }
+            body = {
+                "text": text,
+                "model_id": settings.ELEVENLABS_MODEL_ID,
+                "voice_settings": {
+                    "stability": 0.5,
+                    "similarity_boost": 0.75
+                }
+            }
+
+            with httpx.Client(timeout=15.0) as client:
+                res = client.post(url, json=body, headers=headers)
+                if res.status_code == 200:
+                    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+                        tmp.write(res.content)
+                        tmp_file = tmp.name
+
+                    self._play_audio_file(tmp_file)
+                    if os.path.exists(tmp_file):
+                        os.remove(tmp_file)
+                    return True
+                else:
+                    logger.warning(f"ElevenLabs API returned status {res.status_code}: {res.text[:100]}")
+        except Exception as e:
+            logger.warning(f"ElevenLabs speech synthesis failed: {e}")
+        return False
 
     def _play_audio_file(self, file_path: str):
         """Plays synthesized mp3 audio file using pygame or PowerShell."""
