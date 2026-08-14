@@ -82,10 +82,21 @@ class N8nAgent(BaseAgent):
                         from automation.email_client import EmailClient
                         client = EmailClient()
                         emails = client.fetch_unread_emails(limit=3)
+                        if emails and emails[0].get("subject") == "Email Credentials Missing":
+                            return {
+                                "status": "warning",
+                                "workflow_name": "Gmail Reader",
+                                "speech_reply": "Sir, n8n me 'gmail-read' workflow abhi active nahi hai, aur local email credentials missing hain. Kripya n8n me gmail-read workflow Publish karein ya .env file me EMAIL_ADDRESS setup karein.",
+                                "message": "Email credentials missing."
+                            }
+
+                        email_summaries = [f"From {e.get('from', 'Unknown')}: {e.get('subject', 'No Subject')}" for e in emails]
+                        summary_str = "; ".join(email_summaries)
                         return {
                             "status": "success",
                             "workflow_name": "Gmail Local Fallback",
                             "data": emails,
+                            "speech_reply": f"Sir, aapke unread emails yeh hain: {summary_str}",
                             "message": f"Retrieved {len(emails)} emails via local Email client."
                         }
                     except Exception as ex:
