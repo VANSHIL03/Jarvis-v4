@@ -1,9 +1,9 @@
 """
 JARVIS v4 - LinkedIn Automation Plugin
-Provides local Playwright browser automation fallback for posting & interacting on LinkedIn.
+Provides local browser automation fallback for posting & interacting on LinkedIn.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, List
 from plugins.base_plugin import BasePlugin
 from utils.logger import logger
 
@@ -17,7 +17,10 @@ class LinkedInPlugin(BasePlugin):
         return "linkedin"
 
     @property
-    def actions(self) -> list[str]:
+    def description(self) -> str:
+        return "LinkedIn Browser Automation & Posting Plugin"
+
+    def get_supported_commands(self) -> List[str]:
         return ["post_update", "open_linkedin"]
 
     def execute(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
