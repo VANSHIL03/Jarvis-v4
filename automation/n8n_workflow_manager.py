@@ -34,6 +34,7 @@ class N8nWorkflowManager:
         self.builtin_service_map: Dict[str, Dict[str, Any]] = {
             "whatsapp": {"tags": ["whatsapp", "messaging", "chat"], "webhook": "whatsapp-send", "service": "WhatsApp"},
             "email": {"tags": ["email", "gmail", "mail", "send email"], "webhook": "email-send", "service": "Email"},
+            "read_gmail": {"tags": ["read email", "check email", "inbox", "gmail padho", "unread email", "latest emails", "read gmail", "my email", "my gmail"], "webhook": "gmail-read", "service": "Gmail Reader"},
             "google_drive": {"tags": ["drive", "google drive", "gdrive", "upload"], "webhook": "gdrive-upload", "service": "Google Drive"},
             "github_push": {"tags": ["github", "git push", "repo"], "webhook": "github-push", "service": "GitHub"},
             "backup_folder": {"tags": ["backup", "zip", "archive", "folder backup"], "webhook": "backup-folder", "service": "Backup"},
