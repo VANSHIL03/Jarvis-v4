@@ -531,7 +531,7 @@ class PlannerAgent:
             "github", "github push", "google drive", "gdrive", "upload to drive",
             "linkedin", "instagram", "youtube upload", "reddit", "excel", "powerpoint", "ppt",
             "google calendar", "calendar event", "grok", "grok ai", "xai", "ask grok",
-            "read gmail", "check gmail", "read my gmail", "gmail padho",
+            "gmail", "email", "emails", "mail", "read gmail", "check gmail", "read my gmail", "gmail padho",
             "read email", "check email", "inbox", "backup folder", "discord alert",
             "discord notification", "telegram message", "google sheets", "spreadsheet",
             "slack message", "notion add", "dropbox", "onedrive"
