@@ -38,8 +38,17 @@ class EmailClient:
             logger.error(f"Failed to send email: {e}")
             return False
 
-    def fetch_unread_emails(self, user_email: str, user_password: str, limit: int = 5) -> List[Dict[str, str]]:
+    def fetch_unread_emails(self, user_email: str = "", user_password: str = "", limit: int = 5) -> List[Dict[str, str]]:
         """Fetches unread emails from IMAP inbox."""
+        import os
+        from config.settings import settings
+        user_email = user_email or os.getenv("EMAIL_ADDRESS", getattr(settings, "EMAIL_ADDRESS", ""))
+        user_password = user_password or os.getenv("EMAIL_PASSWORD", getattr(settings, "EMAIL_PASSWORD", ""))
+
+        if not user_email or not user_password:
+            logger.warning("Email credentials missing for IMAP fetch.")
+            return [{"from": "System Alert", "subject": "Email Credentials Missing", "date": "", "body": "Please add EMAIL_ADDRESS and EMAIL_PASSWORD to .env or set up n8n gmail-read workflow."}]
+
         emails_list = []
         try:
             mail = imaplib.IMAP4_SSL(self.imap_server, self.port_imap)
