@@ -51,8 +51,8 @@ class Settings(BaseSettings):
     SAFETY_CONFIRMATION_REQUIRED: bool = True
     GITHUB_TOKEN: str = ""
     GITHUB_USERNAME: str = ""
-    EMAIL_ADDRESS: str = "vanshilgupta4@gmail.com"
-    EMAIL_PASSWORD: str = "Vanshil@33554"
+    EMAIL_ADDRESS: str = ""
+    EMAIL_PASSWORD: str = ""
 
     # n8n Local Workflow Automation Integration
     N8N_BASE_URL: str = "http://localhost:5678"
