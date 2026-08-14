@@ -59,6 +59,11 @@ class Settings(BaseSettings):
     N8N_TIMEOUT_SECONDS: float = 30.0
     N8N_MAX_RETRIES: int = 3
 
+    # Grok AI (xAI API) Integration
+    GROK_API_KEY: str = ""
+    GROK_BASE_URL: str = "https://api.x.ai/v1"
+    GROK_MODEL: str = "grok-2-mini"
+
     DANGEROUS_COMMAND_KEYWORDS: list[str] = Field(
         default_factory=lambda: [
             "delete file", "format drive", "shutdown", "restart",

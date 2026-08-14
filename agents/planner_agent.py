@@ -527,7 +527,8 @@ class PlannerAgent:
 
         # n8n Cloud & SaaS Workflow Tool Router Fast-Path
         n8n_keywords = [
-            "n8n", "workflow", "read gmail", "check gmail", "read my gmail", "gmail padho",
+            "n8n", "workflow", "grok", "grok ai", "xai", "ask grok", "grok query",
+            "read gmail", "check gmail", "read my gmail", "gmail padho",
             "read email", "check email", "inbox", "google drive", "gdrive", "upload to drive", "github push",
             "backup folder", "discord alert", "discord notification", "telegram message",
             "google sheets", "spreadsheet", "google calendar", "slack message", "notion add",

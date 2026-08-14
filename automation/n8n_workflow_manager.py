@@ -46,6 +46,7 @@ class N8nWorkflowManager:
             "notion": {"tags": ["notion", "notes", "database"], "webhook": "notion-add", "service": "Notion"},
             "dropbox": {"tags": ["dropbox", "cloud storage"], "webhook": "dropbox-upload", "service": "Dropbox"},
             "onedrive": {"tags": ["onedrive", "microsoft drive"], "webhook": "onedrive-upload", "service": "OneDrive"},
+            "grok_ai": {"tags": ["grok", "grok ai", "xai", "ask grok", "grok query", "grok search"], "webhook": "grok-ai-query", "service": "Grok AI (xAI)"},
         }
 
     async def discover_workflows(self, force_refresh: bool = False) -> List[N8nWorkflow]:
