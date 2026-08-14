@@ -89,6 +89,13 @@ class N8nAgent(BaseAgent):
                                 "speech_reply": "Sir, n8n me 'gmail-read' workflow abhi active nahi hai, aur local email credentials missing hain. Kripya n8n me gmail-read workflow Publish karein ya .env file me EMAIL_ADDRESS setup karein.",
                                 "message": "Email credentials missing."
                             }
+                        elif emails and emails[0].get("subject") == "App Password Required":
+                            return {
+                                "status": "warning",
+                                "workflow_name": "Gmail Reader",
+                                "speech_reply": "Sir, Google ne security reason se standard password block kar diya hai kyunki 2FA enabled hai. Kripya myaccount.google.com/apppasswords par jaakar 16-letter App Password generate karein aur .env file me update karein.",
+                                "message": "Google App Password required for 2FA."
+                            }
 
                         email_summaries = [f"From {e.get('from', 'Unknown')}: {e.get('subject', 'No Subject')}" for e in emails]
                         summary_str = "; ".join(email_summaries)

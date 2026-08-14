@@ -69,5 +69,7 @@ class EmailClient:
             mail.logout()
         except Exception as e:
             logger.error(f"Failed to fetch unread emails: {e}")
+            if "Application-specific password required" in str(e) or "AUTHENTICATIONFAILED" in str(e):
+                return [{"from": "Google Security", "subject": "App Password Required", "date": "", "body": "Google 2FA is active. Please generate a 16-character App Password at myaccount.google.com/apppasswords."}]
 
         return emails_list
