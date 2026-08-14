@@ -40,8 +40,9 @@ class N8nAgent(BaseAgent):
 
         elif action in (
             "execute_workflow", "send_whatsapp", "send_email", "read_gmail", "check_emails",
-            "ask_grok", "grok_query", "upload_google_drive",
-            "github_push", "backup_folder", "send_discord_alert", "send_telegram",
+            "ask_grok", "grok_query", "upload_google_drive", "github_push",
+            "linkedin_post", "instagram_post", "youtube_upload", "reddit_post",
+            "manage_excel", "create_powerpoint", "backup_folder", "send_discord_alert", "send_telegram",
             "update_google_sheets", "manage_calendar", "post_slack", "notion_add",
             "dropbox_upload", "onedrive_upload"
         ):

@@ -527,12 +527,14 @@ class PlannerAgent:
 
         # n8n Cloud & SaaS Workflow Tool Router Fast-Path
         n8n_keywords = [
-            "n8n", "workflow", "grok", "grok ai", "xai", "ask grok", "grok query",
+            "n8n", "workflow", "whatsapp", "whatsapp message", "send whatsapp",
+            "github", "github push", "google drive", "gdrive", "upload to drive",
+            "linkedin", "instagram", "youtube upload", "reddit", "excel", "powerpoint", "ppt",
+            "google calendar", "calendar event", "grok", "grok ai", "xai", "ask grok",
             "read gmail", "check gmail", "read my gmail", "gmail padho",
-            "read email", "check email", "inbox", "google drive", "gdrive", "upload to drive", "github push",
-            "backup folder", "discord alert", "discord notification", "telegram message",
-            "google sheets", "spreadsheet", "google calendar", "slack message", "notion add",
-            "dropbox", "onedrive"
+            "read email", "check email", "inbox", "backup folder", "discord alert",
+            "discord notification", "telegram message", "google sheets", "spreadsheet",
+            "slack message", "notion add", "dropbox", "onedrive"
         ]
         if any(k in clean for k in n8n_keywords):
             return True, {
