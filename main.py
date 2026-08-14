@@ -93,6 +93,10 @@ def main():
     unity_plugin = plugin_manager.plugins.get("unity", UnityPlugin())
 
     # 5. Specialized Sub-Agents
+    from agents.n8n_agent import N8nAgent
+    from automation.n8n_workflow_manager import N8nWorkflowManager
+    n8n_manager = N8nWorkflowManager(memory_manager=memory_manager)
+
     sub_agents = {
         "memory_agent": MemoryAgent(memory_manager),
         "coding_agent": CodingAgent(llm_client),
@@ -103,7 +107,8 @@ def main():
         "email_agent": EmailAgent(email_client),
         "file_agent": FileAgent(file_manager, office_auto),
         "gaming_agent": GamingAgent(steam_plugin, unity_plugin),
-        "git_agent": GitAgent(git_control)
+        "git_agent": GitAgent(git_control),
+        "n8n_agent": N8nAgent(llm_client, n8n_manager)
     }
 
     # 6. Executive Planner Agent

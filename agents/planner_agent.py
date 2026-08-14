@@ -23,11 +23,13 @@ from agents.email_agent import EmailAgent
 from agents.file_agent import FileAgent
 from agents.gaming_agent import GamingAgent
 from agents.git_agent import GitAgent
+from agents.n8n_agent import N8nAgent
 
 from automation.news_fetcher import NewsFetcher
 from automation.reminder_manager import ReminderManager
 from automation.shopping import ShoppingAutomation
 from automation.food_delivery import FoodDeliveryAutomation
+from automation.n8n_workflow_manager import N8nWorkflowManager
 
 class PlannerAgent:
     def __init__(
@@ -45,6 +47,9 @@ class PlannerAgent:
         self.reminder_mgr = ReminderManager()
         self.shopping = ShoppingAutomation()
         self.food_automation = FoodDeliveryAutomation()
+        self.n8n_manager = N8nWorkflowManager(memory_manager=memory_manager)
+        if "n8n_agent" not in self.sub_agents:
+            self.sub_agents["n8n_agent"] = N8nAgent(llm_client=llm_client, workflow_manager=self.n8n_manager)
 
     def _get_user_salutation(self) -> str:
         """Dynamically retrieves remembered user name or defaults to Sir."""
@@ -518,6 +523,24 @@ class PlannerAgent:
                 "thought": f"Fast-path triggered: Live Hindi news bulletin for category '{category}'.",
                 "speech_reply": news_res["speech_reply"],
                 "delegations": [{"agent": "browser_agent", "action": "open_website", "params": {"url": news_res["url"]}}]
+            }
+
+        # n8n Cloud & SaaS Workflow Tool Router Fast-Path
+        n8n_keywords = [
+            "n8n", "workflow", "google drive", "gdrive", "upload to drive", "github push",
+            "backup folder", "discord alert", "discord notification", "telegram message",
+            "google sheets", "spreadsheet", "google calendar", "slack message", "notion add",
+            "dropbox", "onedrive"
+        ]
+        if any(k in clean for k in n8n_keywords):
+            return True, {
+                "thought": f"Tool Router classified request '{clean}' -> Category: n8n Workflow. Delegating to n8n_agent.",
+                "speech_reply": f"Ji {sir}, main local n8n engine ke dwara aapki workflow execute kar raha hoon.",
+                "delegations": [{
+                    "agent": "n8n_agent",
+                    "action": "execute_workflow",
+                    "params": {"user_intent": user_input, "payload": {"intent": user_input}}
+                }]
             }
 
         # Reminder & Alarm scheduling
