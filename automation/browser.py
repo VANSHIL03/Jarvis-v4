@@ -72,7 +72,7 @@ class PlaywrightBrowser:
                     matches = re.findall(r"watch\?v=([a-zA-Z0-9_-]{11})", resp.text)
                     if matches:
                         video_id = matches[0]
-                        watch_url = f"https://www.youtube.com/watch?v={video_id}"
+                        watch_url = f"https://www.youtube.com/watch?v={video_id}&autoplay=1"
                         logger.info(f"Resolved direct YouTube video watch URL: {watch_url}")
                         return watch_url
         except Exception as e:

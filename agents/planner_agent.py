@@ -266,22 +266,31 @@ class PlannerAgent:
         # Hinglish / English YouTube search & video/music playback
         yt_keywords = ["youtube", "you tube", "youtuve", "yutube", "utube"]
         music_keywords = ["music", "song", "gana", "gaana", "geet", "video", "track", "audio"]
+        music_verbs = ["play", "chalao", "chala", "sunao", "suna", "search", "kholo", "open", "bajao", "baja", "baja do", "chala do", "sunna", "lagao", "laga do", "laga", "bhej"]
+
         is_yt_mention = any(k in clean.lower() for k in yt_keywords)
         is_music_mention = any(k in clean.lower() for k in music_keywords)
+        is_verb_mention = any(k in clean.lower() for k in music_verbs)
 
-        if is_yt_mention or (is_music_mention and any(k in clean.lower() for k in ["play", "chalao", "sunao", "search", "kholo", "open"])):
+        if is_yt_mention or is_music_mention or (is_verb_mention and any(k in clean.lower() for k in ["song", "music", "gana", "gaana", "video", "audio"])):
             term = clean
-            words_to_remove = ["jarvis", "youtube", "you tube", "pe", "par", "p", "on", "in", "from", "kholo", "chalao", "open", "play", "search", "sunao", "dhoondho", "video", "ka", "ki", "ke", "ko"]
+            words_to_remove = [
+                "jarvis", "youtube", "you tube", "youtuve", "yutube", "utube",
+                "pe", "par", "p", "on", "in", "from", "se", "kholo", "chalao", "chala",
+                "open", "play", "search", "sunao", "suna", "dhoondho", "video", "audio",
+                "ka", "ki", "ke", "ko", "bajao", "baja", "baja do", "chala do", "sunna",
+                "lagao", "laga do", "laga", "gana", "gaana", "song", "geet", "music"
+            ]
             for w in words_to_remove:
                 term = re.sub(r"\b" + re.escape(w) + r"\b", "", term, flags=re.I)
             term = re.sub(r"\s+", " ", term).strip()
             
             if not term or term.lower() in ["music", "song", "gana", "video", "youtube", "latest"]:
-                term = "top trending music"
+                term = "basic minimum"
 
             return True, {
                 "thought": f"Fast-path triggered: Playing '{term}' on YouTube.",
-                "speech_reply": f"Ji {sir}, YouTube par {term} chala raha hoon.",
+                "speech_reply": f"Ji {sir}, YouTube par '{term}' gana chala raha hoon.",
                 "delegations": [{"agent": "browser_agent", "action": "play_youtube", "params": {"search_term": term}}]
             }
 
