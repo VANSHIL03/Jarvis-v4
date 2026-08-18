@@ -23,6 +23,11 @@ class VisionAgent(BaseAgent):
     def description(self) -> str:
         return "Analyzes uploaded screenshots, offer letters, documents, and photos to generate descriptions, summaries, and automated posts."
 
+    async def _get_fresh_vision(self) -> VisionAnalyzer:
+        """Returns fresh VisionAnalyzer instance dynamically to bypass stale bytecode caches."""
+        from ai.vision import VisionAnalyzer
+        return VisionAnalyzer()
+
     async def execute_task(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
         action = action.lower()
         image_path = params.get("image_path", params.get("file_path", ""))
@@ -35,9 +40,19 @@ class VisionAgent(BaseAgent):
                 "message": "No image path provided."
             }
 
+        vision = self.vision
+        if not hasattr(vision, "analyze_image_with_prompt") or not hasattr(vision, "generate_linkedin_post_from_document"):
+            vision = await self._get_fresh_vision()
+            self.vision = vision
+
         if action in ["analyze_screenshot", "describe_image", "analyze_photo", "analyze_image"]:
-            res = await self.vision.analyze_image_with_prompt(image_path, user_prompt)
-            description = res.get("analysis", "")
+            if hasattr(vision, "analyze_image_with_prompt"):
+                res = await vision.analyze_image_with_prompt(image_path, user_prompt)
+            else:
+                ocr = vision.extract_text(image_path) if hasattr(vision, "extract_text") else ""
+                res = {"analysis": f"Attached screenshot: {image_path}. Extracted OCR: {ocr}"}
+
+            description = res.get("analysis", res.get("description", ""))
             speech = f"Ji Sir, maine aapke screenshot ko analyze kar liya hai. Yeh raha aapka description: {description[:180]}..."
             return {
                 "status": "success",
@@ -48,15 +63,18 @@ class VisionAgent(BaseAgent):
             }
 
         elif action in ["generate_linkedin_post", "create_linkedin_description", "post_offer_letter"]:
-            if hasattr(self.vision, "generate_linkedin_post_from_document"):
-                res = await self.vision.generate_linkedin_post_from_document(image_path, user_prompt)
-            elif hasattr(self.vision, "generate_linkedin_post"):
-                res = await self.vision.generate_linkedin_post(image_path, user_prompt)
-            else:
-                res = await self.vision.analyze_image_with_prompt(image_path, f"Generate a LinkedIn post description for this document: {user_prompt}")
+            if hasattr(vision, "generate_linkedin_post_from_document"):
+                res = await vision.generate_linkedin_post_from_document(image_path, user_prompt)
+            elif hasattr(vision, "generate_linkedin_post"):
+                res = await vision.generate_linkedin_post(image_path, user_prompt)
+            elif hasattr(vision, "analyze_image_with_prompt"):
+                res = await vision.analyze_image_with_prompt(image_path, f"Generate a LinkedIn post description for this document: {user_prompt}")
                 res["post_content"] = res.get("analysis", "")
+            else:
+                fresh = await self._get_fresh_vision()
+                res = await fresh.generate_linkedin_post_from_document(image_path, user_prompt)
 
-            post_content = res.get("post_content", res.get("analysis", ""))
+            post_content = res.get("post_content", res.get("analysis", res.get("description", "")))
 
             # Trigger LinkedIn browser share composer
             plugin_res = self.linkedin_plugin.execute("post_update", {"text": post_content})
