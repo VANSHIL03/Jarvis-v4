@@ -351,8 +351,8 @@ class PlannerAgent:
             msg = ""
 
             # Case A: Hinglish "<CONTACT> ko <MSG> [likh k bhejo / bhejo / message karo]"
-            # e.g. "mummy ko Hi likh k bhejo" -> contact="mummy", msg="Hi"
-            h_match = re.search(r"^([a-zA-Z0-9_\-\s]+?)\s+(?:ko|par|pe)\s+(.+?)(?:\s+(?:likh\s*k[ae]?\s*bhej[oa]?|bhej[oa]?\s*do|bhej[oa]?|message\s*kar[oa]?|msg\s*kar[oa]?|send\s*kar[oa]?))?$", t_clean, re.IGNORECASE)
+            # e.g. "Fr.Aman Singh 2 ko Hello Sir, This is Jarvis v4.0 likh k bhejo" -> contact="Fr.Aman Singh 2", msg="Hello Sir, This is Jarvis v4.0"
+            h_match = re.search(r"^([a-zA-Z0-9_\-\s\.\,\'\"]+?)\s+(?:ko|par|pe)\s+(.+?)(?:\s+(?:likh\s*k[ae]?\s*bhej[oa]?|bhej[oa]?\s*do|bhej[oa]?|message\s*kar[oa]?|msg\s*kar[oa]?|send\s*kar[oa]?))?$", t_clean, re.IGNORECASE)
             if h_match and h_match.group(1).lower() not in ["open", "kholo", "chalao"]:
                 contact = h_match.group(1).strip()
                 raw_msg = h_match.group(2).strip()
@@ -362,8 +362,8 @@ class PlannerAgent:
 
             # Case B: English "message <CONTACT> on whatsapp <MSG>" or "send whatsapp message to <CONTACT> <MSG>"
             if not (contact and msg):
-                p_eng1 = re.search(r"(?:send\s+a?\s*|write\s+a?\s*)?(?:whatsapp\s+)?message\s+(?:to\s+)?([a-zA-Z0-9_\-\s]+?)\s+(?:on\s+whatsapp\s+|in\s+whatsapp\s+)?[\"\']?(.+?)[\"\']?$", t_clean, re.IGNORECASE)
-                p_eng2 = re.search(r"(?:send\s+a?\s*|write\s+a?\s*)?whatsapp\s+(?:message\s+)?(?:to\s+)?([a-zA-Z0-9_\-\s]+?)\s+(?:on\s+whatsapp\s+|in\s+whatsapp\s+)?[\"\']?(.+?)[\"\']?$", t_clean, re.IGNORECASE)
+                p_eng1 = re.search(r"(?:send\s+a?\s*|write\s+a?\s*)?(?:whatsapp\s+)?message\s+(?:to\s+)?([a-zA-Z0-9_\-\s\.\,\'\"]+?)\s+(?:on\s+whatsapp\s+|in\s+whatsapp\s+)?[\"\']?(.+?)[\"\']?$", t_clean, re.IGNORECASE)
+                p_eng2 = re.search(r"(?:send\s+a?\s*|write\s+a?\s*)?whatsapp\s+(?:message\s+)?(?:to\s+)?([a-zA-Z0-9_\-\s\.\,\'\"]+?)\s+(?:on\s+whatsapp\s+|in\s+whatsapp\s+)?[\"\']?(.+?)[\"\']?$", t_clean, re.IGNORECASE)
                 e_match = p_eng1 or p_eng2
                 if e_match:
                     contact = e_match.group(1).strip()

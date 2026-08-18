@@ -66,7 +66,7 @@ class N8nAgent(BaseAgent):
                         plugin = WhatsAppPlugin()
                         phone = params.get("phone", params.get("recipient", "9984265921"))
                         msg = params.get("message", intent)
-                        fallback_res = plugin.send_message(phone, msg)
+                        fallback_res = plugin.execute("send_message", {"contact_name": phone, "message": msg})
                         return {
                             "status": "success",
                             "workflow_name": "WhatsApp Local Fallback",
