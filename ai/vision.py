@@ -126,6 +126,9 @@ class VisionAnalyzer:
         except Exception:
             pass
 
+        # Also copy actual image pixels to Windows System Clipboard for Ctrl+V paste
+        self.copy_image_to_clipboard(image_path)
+
         return {
             "status": "success",
             "image_path": image_path,
@@ -133,6 +136,21 @@ class VisionAnalyzer:
             "description": post_content,
             "ocr_text": ocr_text
         }
+
+    def copy_image_to_clipboard(self, image_path: str) -> bool:
+        """Copies actual image file pixels to Windows System Clipboard for instant Ctrl+V pasting."""
+        try:
+            from PySide6.QtWidgets import QApplication
+            from PySide6.QtGui import QImage, QGuiApplication
+            app = QApplication.instance() or QApplication([])
+            qimg = QImage(image_path)
+            if not qimg.isNull():
+                QGuiApplication.clipboard().setImage(qimg)
+                logger.info(f"Copied image '{image_path}' to Windows Clipboard.")
+                return True
+        except Exception as e:
+            logger.warning(f"Could not copy image to clipboard: {e}")
+        return False
 
     # Alias for method compatibility
     generate_linkedin_post = generate_linkedin_post_from_document

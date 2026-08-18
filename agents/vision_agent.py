@@ -54,7 +54,7 @@ class VisionAgent(BaseAgent):
             # Trigger LinkedIn browser share composer
             plugin_res = self.linkedin_plugin.execute("post_update", {"text": post_content})
 
-            speech = "Ji Sir, maine aapke screenshot ka LinkedIn post description write kar diya hai aur LinkedIn share composer browser me open kar diya hai!"
+            speech = "Ji Sir, maine aapke screenshot ka LinkedIn post description write karke image aur text dono ko Clipboard me copy kar diya hai, aur LinkedIn share composer open kar diya hai!"
             return {
                 "status": "success",
                 "image_path": image_path,
