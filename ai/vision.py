@@ -119,9 +119,20 @@ class VisionAnalyzer:
                 "#NewBeginnings #CareerGrowth #Achievement #Gratitude #ProfessionalJourney"
             )
 
+        try:
+            import pyperclip
+            pyperclip.copy(post_content)
+            logger.info("Copied generated LinkedIn post text to clipboard.")
+        except Exception:
+            pass
+
         return {
             "status": "success",
             "image_path": image_path,
             "post_content": post_content,
+            "description": post_content,
             "ocr_text": ocr_text
         }
+
+    # Alias for method compatibility
+    generate_linkedin_post = generate_linkedin_post_from_document

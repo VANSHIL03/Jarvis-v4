@@ -36,11 +36,18 @@ class LinkedInPlugin(BasePlugin):
             text = params.get("text", params.get("post_text", params.get("content", "")))
             import webbrowser
             from urllib.parse import quote
+            try:
+                import pyperclip
+                if text:
+                    pyperclip.copy(text)
+            except Exception:
+                pass
+
             url = f"https://www.linkedin.com/feed/?shareActive=true&text={quote(text)}" if text else "https://www.linkedin.com/feed/"
             webbrowser.open(url)
             return {
                 "status": "success",
-                "message": f"Opened LinkedIn post composer with message: '{text}'"
+                "message": f"Opened LinkedIn post composer with pre-filled message."
             }
 
         return {"status": "error", "message": f"Unknown LinkedIn action '{action}'"}
