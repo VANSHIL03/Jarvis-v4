@@ -167,6 +167,7 @@ class JarvisMainWindow(QMainWindow):
         # ═══ Bottom: Chat Feed ═══
         self.chat_widget = ChatWidget()
         self.chat_widget.user_submitted_message.connect(self._on_user_message)
+        self.chat_widget.user_submitted_message_with_attachment.connect(self._on_user_message_with_attachment)
         main_layout.addWidget(self.chat_widget, stretch=3)
 
         self.setCentralWidget(main_widget)
@@ -437,17 +438,26 @@ class JarvisMainWindow(QMainWindow):
             pass
         return "Sir"
 
+    def _on_user_message_with_attachment(self, text: str, image_path: str):
+        """Triggered when user submits prompt with an attached photo/screenshot."""
+        self._on_user_message(text, image_path=image_path)
+
     # ─── User Message Processing ───
-    def _on_user_message(self, text: str):
-        """Triggered when user enters text or voice command."""
-        self.chat_widget.append_user_message(text)
+    def _on_user_message(self, text: str, image_path: Optional[str] = None):
+        """Triggered when user enters text, photo attachment, or voice command."""
         self.sys_widget.set_status(f"PROCESSING: '{text[:40]}'...")
 
         sir = self._get_salutation()
         clean = text.lower()
 
+        if image_path:
+            initial_ack = f"Ji {sir}, aapke screenshot ko analyze karke description write kar raha hoon."
+            self.chat_widget.append_jarvis_message(initial_ack)
+            if self.tts_engine:
+                threading.Thread(target=self.tts_engine.speak, args=(initial_ack,), daemon=True).start()
+
         # Instant initial voice acknowledgment for code requests
-        if "code" in clean and any(k in clean for k in ["write", "likh", "banao", "create", "generate", "give", "do"]):
+        elif "code" in clean and any(k in clean for k in ["write", "likh", "banao", "create", "generate", "give", "do"]):
             initial_ack = f"Ji {sir}, thoda wait kijiye. Main aapka code generate karke Notepad me open kar raha hoon."
             self.chat_widget.append_jarvis_message(initial_ack)
             if self.tts_engine:
@@ -458,7 +468,7 @@ class JarvisMainWindow(QMainWindow):
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
-                    result = loop.run_until_complete(self.planner_agent.process_user_request(text))
+                    result = loop.run_until_complete(self.planner_agent.process_user_request(text, image_path=image_path))
                     self.request_finished_signal.emit(result)
                 except Exception as e:
                     logger.error(f"Worker thread error: {e}")
@@ -487,8 +497,15 @@ class JarvisMainWindow(QMainWindow):
 
             # Display generated code or result payload directly in GUI feed
             if isinstance(res_data, dict):
-                code_payload = res_data.get("code") or res_data.get("explanation") or res_data.get("debug_result") or res_data.get("stdout")
-                lang = res_data.get("language", "Java/Code")
+                code_payload = (
+                    res_data.get("code") or
+                    res_data.get("description") or
+                    res_data.get("post_content") or
+                    res_data.get("explanation") or
+                    res_data.get("debug_result") or
+                    res_data.get("stdout")
+                )
+                lang = res_data.get("language", "Analysis & Description")
                 if code_payload:
                     self.chat_widget.append_code_message(code_payload, language=lang)
 

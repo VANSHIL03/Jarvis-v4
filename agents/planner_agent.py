@@ -50,6 +50,9 @@ class PlannerAgent:
         self.n8n_manager = N8nWorkflowManager(memory_manager=memory_manager)
         if "n8n_agent" not in self.sub_agents:
             self.sub_agents["n8n_agent"] = N8nAgent(llm_client=llm_client, workflow_manager=self.n8n_manager)
+        if "vision_agent" not in self.sub_agents:
+            from agents.vision_agent import VisionAgent
+            self.sub_agents["vision_agent"] = VisionAgent()
 
     def _get_user_salutation(self) -> str:
         """Dynamically retrieves remembered user name or defaults to Sir."""
@@ -63,10 +66,34 @@ class PlannerAgent:
             pass
         return "Sir"
 
-    def _fast_path_match(self, user_input: str) -> tuple[bool, Dict[str, Any]]:
+    def _fast_path_match(self, user_input: str, image_path: Optional[str] = None) -> tuple[bool, Dict[str, Any]]:
         """Fast-path resolution for instant OS, application & web site automation commands."""
         clean = re.sub(r"^(?:hey\s+jarvis|hi\s+jarvis|okay\s+jarvis|ok\s+jarvis|jarvis)\s*[,:\.\-]?\s*", "", user_input.lower().strip(), flags=re.I).strip()
         sir = self._get_user_salutation()
+
+        # Vision / Screenshot / Offer Letter / Photo Analysis Fast-Path
+        if image_path or any(k in clean for k in ["screenshot", "offer letter", "photo", "picture", "document", "certificate"]):
+            if image_path:
+                if any(k in clean for k in ["linkedin", "post", "description", "share", "caption"]):
+                    return True, {
+                        "thought": "Fast-path triggered: Analyzing document/screenshot for LinkedIn post generation.",
+                        "speech_reply": f"Ji {sir}, aapke screenshot ko analyze karke LinkedIn post description generate kar raha hoon.",
+                        "delegations": [{
+                            "agent": "vision_agent",
+                            "action": "generate_linkedin_post",
+                            "params": {"image_path": image_path, "user_prompt": user_input}
+                        }]
+                    }
+                else:
+                    return True, {
+                        "thought": "Fast-path triggered: Analyzing screenshot/photo content.",
+                        "speech_reply": f"Ji {sir}, aapke screenshot ka description generate kar raha hoon.",
+                        "delegations": [{
+                            "agent": "vision_agent",
+                            "action": "analyze_screenshot",
+                            "params": {"image_path": image_path, "user_prompt": user_input}
+                        }]
+                    }
 
         # User Name Query (Ask Name)
         if any(phrase in clean.lower() for phrase in ["what is my name", "do you know my name", "tell me my name", "mera naam kya", "mera naam batao"]):
