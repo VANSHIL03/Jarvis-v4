@@ -220,7 +220,15 @@ class PlannerAgent:
                 }
 
         # Code Generation & VS Code Project Creator fast-path (English & Hinglish)
-        if "code" in clean.lower() and any(k in clean.lower() for k in ["write", "likh", "banao", "create", "generate", "give", "do", "script", "make", "vs code", "vscode"]):
+        code_triggers = ["code", "script", "program", "coding", "algorithm", "function", "webpage", "snippet"]
+        code_actions = ["write", "likh", "banao", "create", "generate", "give", "do", "make", "vs code", "vscode", "build"]
+        
+        is_coding_request = (
+            any(t in clean.lower() for t in ["write a code", "write code", "code write", "coding", "code banao", "code likho", "create a script", "write a program", "write python", "write java", "write cpp", "write html", "make code"]) or
+            (any(t in clean.lower() for t in code_triggers) and any(a in clean.lower() for a in code_actions))
+        )
+
+        if is_coding_request:
             lang = "python"
             for l in ["java", "python", "cpp", "c++", "c#", "html", "css", "javascript", "js", "sql", "react", "unity"]:
                 if l in clean.lower():
