@@ -357,7 +357,8 @@ class PlannerAgent:
                 contact = h_match.group(1).strip()
                 raw_msg = h_match.group(2).strip()
                 raw_msg = re.sub(r"\s+(?:likh\s*k[ae]?\s*bhej[oa]?|bhej[oa]?\s*do|bhej[oa]?|message\s*kar[oa]?|msg\s*kar[oa]?|send\s*kar[oa]?)$", "", raw_msg, flags=re.I).strip()
-                raw_msg = re.sub(r"^(?:message|msg)\s+", "", raw_msg, flags=re.I).strip()
+                raw_msg = re.sub(r"^(?:message|msg|send)\s*", "", raw_msg, flags=re.I).strip()
+                raw_msg = re.sub(r"^(?:kro|karo|do|bhejo|bhej|likh\s*k[ae]?\s*bhej[oa]?|likh\s*k[ae]?)\s*", "", raw_msg, flags=re.I).strip()
                 msg = raw_msg.strip('"').strip("'").strip()
 
             # Case B: English "message <CONTACT> on whatsapp <MSG>" or "send whatsapp message to <CONTACT> <MSG>"
