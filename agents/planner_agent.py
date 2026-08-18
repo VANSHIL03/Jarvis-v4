@@ -342,35 +342,54 @@ class PlannerAgent:
 
         # Check WhatsApp message sending intent FIRST (English & Hinglish)
         if any(k in clean for k in ["bhejo", "send", "message", "msg", "whatsapp"]):
-            target_text = re.sub(r"^(?:jarvis|jarvas|travis)\s*,?\s*", "", user_input, flags=re.I).strip()
+            t_clean = user_input
+            t_clean = re.sub(r"^(?:jarvis|jarvas|travis)\s*,?\s*", "", t_clean, flags=re.I).strip()
+            t_clean = re.sub(r"^(?:open\s+whatsapp\s+(?:and|aur)?\s*|whatsapp\s+(?:kholo|open\s+karo)?\s*(?:aur|and)?\s*|whatsapp\s*)+", "", t_clean, flags=re.I).strip()
+            t_clean = re.sub(r"^(?:pe|par|p)\s+", "", t_clean, flags=re.I).strip()
 
-            p_eng1 = re.search(r"(?:send\s+a?\s*|write\s+a?\s*)?(?:whatsapp\s+)?message\s+(?:to\s+)?([a-zA-Z0-9_\-\s]+?)\s+(?:on\s+whatsapp\s+|in\s+whatsapp\s+)?[\"\']?(.+?)[\"\']?$", target_text, re.IGNORECASE)
-            p_eng2 = re.search(r"(?:send\s+a?\s*|write\s+a?\s*)?whatsapp\s+(?:message\s+)?(?:to\s+)?([a-zA-Z0-9_\-\s]+?)\s+(?:on\s+whatsapp\s+|in\s+whatsapp\s+)?[\"\']?(.+?)[\"\']?$", target_text, re.IGNORECASE)
-            p_hing = re.search(r"(?:whatsapp\s+(?:kholo|open\s+karo)?\s*(?:aur|and)?\s*)?([a-zA-Z0-9_\-\s]+?)\s+(?:ko|par|pe)\s+(?:whatsapp\s+)?(?:pe\s+|par\s+)?(?:message\s+bhejo\s+|msg\s+bhejo\s+|message\s+|msg\s+|bhejo\s+)?[\"\']?(.+?)[\"\']?$", target_text, re.IGNORECASE)
+            contact = ""
+            msg = ""
 
-            match = p_eng1 or p_eng2 or p_hing
-            if match:
-                contact = match.group(1).strip()
-                msg = match.group(2).strip()
+            # Case A: Hinglish "<CONTACT> ko <MSG> [likh k bhejo / bhejo / message karo]"
+            # e.g. "mummy ko Hi likh k bhejo" -> contact="mummy", msg="Hi"
+            h_match = re.search(r"^([a-zA-Z0-9_\-\s]+?)\s+(?:ko|par|pe)\s+(.+?)(?:\s+(?:likh\s*k[ae]?\s*bhej[oa]?|bhej[oa]?\s*do|bhej[oa]?|message\s*kar[oa]?|msg\s*kar[oa]?|send\s*kar[oa]?))?$", t_clean, re.IGNORECASE)
+            if h_match and h_match.group(1).lower() not in ["open", "kholo", "chalao"]:
+                contact = h_match.group(1).strip()
+                raw_msg = h_match.group(2).strip()
+                raw_msg = re.sub(r"\s+(?:likh\s*k[ae]?\s*bhej[oa]?|bhej[oa]?\s*do|bhej[oa]?|message\s*kar[oa]?|msg\s*kar[oa]?|send\s*kar[oa]?)$", "", raw_msg, flags=re.I).strip()
+                raw_msg = re.sub(r"^(?:message|msg)\s+", "", raw_msg, flags=re.I).strip()
+                msg = raw_msg.strip('"').strip("'").strip()
 
-                for prefix in ["whatsapp kholo aur", "whatsapp kholo and", "whatsapp pe", "whatsapp par", "whatsapp p", "open whatsapp and", "send", "message"]:
+            # Case B: English "message <CONTACT> on whatsapp <MSG>" or "send whatsapp message to <CONTACT> <MSG>"
+            if not (contact and msg):
+                p_eng1 = re.search(r"(?:send\s+a?\s*|write\s+a?\s*)?(?:whatsapp\s+)?message\s+(?:to\s+)?([a-zA-Z0-9_\-\s]+?)\s+(?:on\s+whatsapp\s+|in\s+whatsapp\s+)?[\"\']?(.+?)[\"\']?$", t_clean, re.IGNORECASE)
+                p_eng2 = re.search(r"(?:send\s+a?\s*|write\s+a?\s*)?whatsapp\s+(?:message\s+)?(?:to\s+)?([a-zA-Z0-9_\-\s]+?)\s+(?:on\s+whatsapp\s+|in\s+whatsapp\s+)?[\"\']?(.+?)[\"\']?$", t_clean, re.IGNORECASE)
+                e_match = p_eng1 or p_eng2
+                if e_match:
+                    contact = e_match.group(1).strip()
+                    msg = e_match.group(2).strip()
+
+            # Final cleanup on contact and msg
+            if contact:
+                for prefix in ["whatsapp kholo aur", "whatsapp kholo and", "whatsapp pe", "whatsapp par", "whatsapp p", "open whatsapp and", "send", "message", "msg"]:
                     if contact.lower().startswith(prefix):
                         contact = contact[len(prefix):].strip()
-
                 contact = re.sub(r"\s+(?:on|in|via|through)\s+whatsapp$", "", contact, flags=re.I).strip()
+
+            if msg:
                 msg = re.sub(r"^(?:on|in|via|through)\s+whatsapp\s+", "", msg, flags=re.I).strip()
                 msg = msg.strip('"').strip("'").strip()
 
-                if contact and msg and len(contact) >= 2 and contact.lower() not in ["open", "kholo", "chalao"]:
-                    return True, {
-                        "thought": f"Fast-path triggered: Sending WhatsApp message to '{contact}': '{msg}'.",
-                        "speech_reply": f"Ji {sir}, {contact.capitalize()} ko WhatsApp par '{msg}' message bhej raha hoon.",
-                        "delegations": [{
-                            "agent": "whatsapp_agent",
-                            "action": "send_message",
-                            "params": {"contact_name": contact, "message": msg}
-                        }]
-                    }
+            if contact and msg and len(contact) >= 2 and contact.lower() not in ["open", "kholo", "chalao", "whatsapp", "pe"]:
+                return True, {
+                    "thought": f"Fast-path triggered: Sending WhatsApp message to '{contact}': '{msg}'.",
+                    "speech_reply": f"Ji {sir}, {contact.capitalize()} ko WhatsApp par '{msg}' message bhej raha hoon.",
+                    "delegations": [{
+                        "agent": "whatsapp_agent",
+                        "action": "send_message",
+                        "params": {"contact_name": contact, "message": msg}
+                    }]
+                }
 
         if "whatsapp" in clean:
             if any(k in clean for k in ["open", "kholo", "chalao"]) or clean == "whatsapp":
