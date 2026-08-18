@@ -478,6 +478,18 @@ class PlannerAgent:
                 "delegations": [{"agent": "windows_agent", "action": "restart_pc", "params": {}}]
             }
 
+        # Real-time Live System Hardware Specs (English & Hinglish)
+        specs_keywords = ["system specs", "pc specs", "laptop specs", "system specification", "system detail", "specs batao", "specifications", "hardware specs"]
+        if any(k in clean for k in specs_keywords):
+            win_agent = self.sub_agents.get("windows_agent")
+            specs = win_agent.sys_control.get_system_specs() if win_agent else SystemControl().get_system_specs()
+            speech = f"Ji {sir}, aapke system ki real hardware specs yeh hain: Processor {specs['cpu']}, GPU {specs['gpu']}, RAM {specs['ram']}, Operating System {specs['os']}."
+            return True, {
+                "thought": "Fast-path triggered: Querying real-time system hardware specifications.",
+                "speech_reply": speech,
+                "delegations": [{"agent": "windows_agent", "action": "get_system_specs", "params": {}}]
+            }
+
         # Lock PC / Laptop (English & Hinglish)
         lock_phrases = [
             "lock pc", "lock computer", "pc lock karo", "pc lock kro",

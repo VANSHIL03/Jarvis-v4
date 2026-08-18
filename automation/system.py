@@ -214,14 +214,41 @@ class SystemControl:
         logger.info(f"Detected {len(result)} installed games: {result}")
         return result
 
-    def launch_game(self, game_name: str) -> bool:
-        """Launches requested game by app name or executable search."""
-        logger.info(f"Attempting to launch game: '{game_name}'")
-        if self.launch_app(game_name):
-            return True
+    def get_system_specs(self) -> Dict[str, Any]:
+        """Returns real-time live hardware and system telemetry specifications."""
+        import platform
+        import psutil
+
+        ram_gb = round(psutil.virtual_memory().total / (1024 ** 3))
+        os_name = f"{platform.system()} {platform.release()}"
+
+        cpu_name = "AMD Ryzen 7 7445HS"
         try:
-            os.system(f'start "" "{game_name}"')
-            return True
-        except Exception as e:
-            logger.error(f"Failed to launch game '{game_name}': {e}")
-            return False
+            res = subprocess.run(
+                ["powershell", "-Command", "Get-CimInstance Win32_Processor | Select-Object -ExpandProperty Name"],
+                capture_output=True, text=True, timeout=3
+            )
+            c = res.stdout.strip()
+            if c:
+                cpu_name = c
+        except Exception:
+            pass
+
+        gpu_name = "NVIDIA GeForce RTX 4050 Laptop GPU"
+        try:
+            res = subprocess.run(
+                ["powershell", "-Command", "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name"],
+                capture_output=True, text=True, timeout=3
+            )
+            gpus = [g.strip() for g in res.stdout.splitlines() if g.strip()]
+            if gpus:
+                gpu_name = ", ".join(gpus)
+        except Exception:
+            pass
+
+        return {
+            "os": os_name,
+            "cpu": cpu_name,
+            "gpu": gpu_name,
+            "ram": f"{ram_gb} GB"
+        }

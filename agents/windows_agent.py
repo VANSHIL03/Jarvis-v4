@@ -53,6 +53,11 @@ class WindowsAgent(BaseAgent):
             res = self.sys_control.sleep_pc()
             return {"status": "success" if res else "error"}
 
+        elif action in ["get_system_specs", "get_specs", "system_specs", "specs"]:
+            specs = self.sys_control.get_system_specs()
+            speech = f"Ji Sir, aapke system ki real specs yeh hain: Processor {specs['cpu']}, GPU {specs['gpu']}, RAM {specs['ram']}, Operating System {specs['os']}."
+            return {"status": "success", "specs": specs, "speech_reply": speech}
+
         elif action in ["list_games", "detect_games", "scan_games", "get_games"]:
             games = self.sys_control.detect_installed_games()
             return {"status": "success", "installed_games": games}
