@@ -48,8 +48,15 @@ class VisionAgent(BaseAgent):
             }
 
         elif action in ["generate_linkedin_post", "create_linkedin_description", "post_offer_letter"]:
-            res = await self.vision.generate_linkedin_post_from_document(image_path, user_prompt)
-            post_content = res.get("post_content", "")
+            if hasattr(self.vision, "generate_linkedin_post_from_document"):
+                res = await self.vision.generate_linkedin_post_from_document(image_path, user_prompt)
+            elif hasattr(self.vision, "generate_linkedin_post"):
+                res = await self.vision.generate_linkedin_post(image_path, user_prompt)
+            else:
+                res = await self.vision.analyze_image_with_prompt(image_path, f"Generate a LinkedIn post description for this document: {user_prompt}")
+                res["post_content"] = res.get("analysis", "")
+
+            post_content = res.get("post_content", res.get("analysis", ""))
 
             # Trigger LinkedIn browser share composer
             plugin_res = self.linkedin_plugin.execute("post_update", {"text": post_content})
