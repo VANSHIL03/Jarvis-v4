@@ -759,12 +759,12 @@ class PlannerAgent:
 
         return False, {}
 
-    async def process_user_request(self, user_input: str, session_id: str = "default") -> Dict[str, Any]:
+    async def process_user_request(self, user_input: str, session_id: str = "default", image_path: Optional[str] = None) -> Dict[str, Any]:
         """Main entry point: processes user prompt, delegates to sub-agents, and produces response."""
-        logger.info(f"Processing user input: '{user_input}'")
+        logger.info(f"Processing user input: '{user_input}' (Image: {image_path})")
 
         # Check fast-path direct command matching
-        is_fast, fast_result = self._fast_path_match(user_input)
+        is_fast, fast_result = self._fast_path_match(user_input, image_path=image_path)
         if is_fast:
             thought = fast_result["thought"]
             speech_reply = fast_result["speech_reply"]
