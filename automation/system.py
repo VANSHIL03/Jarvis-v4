@@ -252,3 +252,35 @@ class SystemControl:
             "gpu": gpu_name,
             "ram": f"{ram_gb} GB"
         }
+
+    def get_storage_info(self) -> Dict[str, Any]:
+        """Returns live drive storage breakdown for all connected drives."""
+        import psutil
+        drives = []
+        total_all_gb = 0
+        free_all_gb = 0
+
+        for part in psutil.disk_partitions():
+            if part.fstype and not part.mountpoint.startswith("/proc"):
+                try:
+                    usage = psutil.disk_usage(part.mountpoint)
+                    t = round(usage.total / (1024 ** 3))
+                    f = round(usage.free / (1024 ** 3))
+                    u = round(usage.used / (1024 ** 3))
+                    total_all_gb += t
+                    free_all_gb += f
+                    drives.append({
+                        "drive": part.device.rstrip("\\"),
+                        "total_gb": t,
+                        "free_gb": f,
+                        "used_gb": u,
+                        "percent_used": usage.percent
+                    })
+                except Exception:
+                    pass
+
+        return {
+            "drives": drives,
+            "total_all_gb": total_all_gb,
+            "free_all_gb": free_all_gb
+        }

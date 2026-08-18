@@ -490,6 +490,19 @@ class PlannerAgent:
                 "delegations": [{"agent": "windows_agent", "action": "get_system_specs", "params": {}}]
             }
 
+        # Real-time Live Drive Storage Specs (English & Hinglish)
+        storage_keywords = ["how much storage", "how much space", "storage i have", "kitni storage", "kitna space", "disk space", "free storage", "storage kitni", "drive space"]
+        if any(k in clean for k in storage_keywords):
+            win_agent = self.sub_agents.get("windows_agent")
+            storage = win_agent.sys_control.get_storage_info() if win_agent else SystemControl().get_storage_info()
+            d_strs = [f"Drive {d['drive']} me {d['free_gb']} GB free space hai ({d['total_gb']} GB total)" for d in storage['drives']]
+            speech = f"Ji {sir}, aapke system me total {storage['free_all_gb']} GB free storage hai. " + ". ".join(d_strs) + "."
+            return True, {
+                "thought": "Fast-path triggered: Querying real-time live drive storage information.",
+                "speech_reply": speech,
+                "delegations": [{"agent": "windows_agent", "action": "get_storage", "params": {}}]
+            }
+
         # Lock PC / Laptop (English & Hinglish)
         lock_phrases = [
             "lock pc", "lock computer", "pc lock karo", "pc lock kro",

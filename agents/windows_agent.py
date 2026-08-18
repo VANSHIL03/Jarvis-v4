@@ -58,6 +58,12 @@ class WindowsAgent(BaseAgent):
             speech = f"Ji Sir, aapke system ki real specs yeh hain: Processor {specs['cpu']}, GPU {specs['gpu']}, RAM {specs['ram']}, Operating System {specs['os']}."
             return {"status": "success", "specs": specs, "speech_reply": speech}
 
+        elif action in ["get_storage", "storage_info", "drive_space", "free_space"]:
+            storage = self.sys_control.get_storage_info()
+            d_strs = [f"Drive {d['drive']} me {d['free_gb']} GB free hai ({d['total_gb']} GB total)" for d in storage['drives']]
+            speech = f"Ji Sir, aapke system me {storage['free_all_gb']} GB free storage hai. " + ". ".join(d_strs) + "."
+            return {"status": "success", "storage": storage, "speech_reply": speech}
+
         elif action in ["list_games", "detect_games", "scan_games", "get_games"]:
             games = self.sys_control.detect_installed_games()
             return {"status": "success", "installed_games": games}
