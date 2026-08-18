@@ -187,10 +187,21 @@ if __name__ == "__main__":
         """Saves generated code into a file and opens it in Notepad."""
         try:
             ext_map = {
-                "python": "py", "java": "java", "cpp": "cpp", "c++": "cpp",
-                "c": "c", "c#": "cs", "csharp": "cs", "html": "html",
-                "css": "css", "javascript": "js", "js": "js", "sql": "sql",
-                "xml": "xml", "json": "json"
+                "python": "py", "py": "py",
+                "java": "java",
+                "cpp": "cpp", "c++": "cpp", "c": "c",
+                "c#": "cs", "csharp": "cs", "cs": "cs",
+                "html": "html", "css": "css",
+                "javascript": "js", "js": "js",
+                "typescript": "ts", "ts": "ts", "react": "jsx",
+                "sql": "sql", "xml": "xml", "json": "json",
+                "php": "php", "go": "go", "golang": "go",
+                "rust": "rs", "rs": "rs",
+                "kotlin": "kt", "kt": "kt",
+                "swift": "swift", "ruby": "rb", "rb": "rb",
+                "shell": "sh", "bash": "sh", "powershell": "ps1", "bat": "bat",
+                "yaml": "yml", "yml": "yml", "markdown": "md", "md": "md",
+                "unity": "cs"
             }
             ext = ext_map.get(language.lower(), "txt")
             with tempfile.NamedTemporaryFile(suffix=f".{ext}", prefix="JARVIS_Code_", delete=False, mode="w", encoding="utf-8") as tmp:
