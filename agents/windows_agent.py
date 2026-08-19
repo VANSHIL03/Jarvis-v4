@@ -78,6 +78,18 @@ class WindowsAgent(BaseAgent):
             self.input_control.type_text(text)
             return {"status": "success", "typed": text}
 
+        elif action in ["toggle_hotspot", "enable_hotspot", "turn_on_hotspot", "hotspot_on"]:
+            enable = params.get("enable", True)
+            res = self.sys_control.toggle_hotspot(enable=enable)
+            state_text = "ON" if enable else "OFF"
+            speech = f"Ji Sir, aapka Windows Mobile Hotspot {state_text} kar diya gaya hai."
+            return {"status": res.get("status", "success"), "state": state_text, "speech_reply": speech}
+
+        elif action in ["disable_hotspot", "turn_off_hotspot", "hotspot_off"]:
+            res = self.sys_control.toggle_hotspot(enable=False)
+            speech = "Ji Sir, aapka Windows Mobile Hotspot OFF kar diya gaya hai."
+            return {"status": res.get("status", "success"), "state": "OFF", "speech_reply": speech}
+
         elif action == "take_screenshot":
             path = params.get("path", "screenshot.png")
             out = self.input_control.take_screenshot(path)

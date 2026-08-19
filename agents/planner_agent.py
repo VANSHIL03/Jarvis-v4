@@ -95,6 +95,21 @@ class PlannerAgent:
                         }]
                     }
 
+        # Windows Mobile Hotspot fast-path (English & Hinglish)
+        if any(k in clean for k in ["hotspot on", "turn on hotspot", "enable hotspot", "hotspot chalao", "hotspot kholo", "hotspot chalu", "hotspot enable", "start hotspot"]):
+            return True, {
+                "thought": "Fast-path triggered: Turning ON Windows Mobile Hotspot.",
+                "speech_reply": f"Ji {sir}, aapka Windows Mobile Hotspot ON kar diya gaya hai.",
+                "delegations": [{"agent": "windows_agent", "action": "toggle_hotspot", "params": {"enable": True}}]
+            }
+
+        if any(k in clean for k in ["hotspot off", "turn off hotspot", "disable hotspot", "hotspot band", "stop hotspot", "close hotspot"]):
+            return True, {
+                "thought": "Fast-path triggered: Turning OFF Windows Mobile Hotspot.",
+                "speech_reply": f"Ji {sir}, aapka Windows Mobile Hotspot OFF kar diya gaya hai.",
+                "delegations": [{"agent": "windows_agent", "action": "toggle_hotspot", "params": {"enable": False}}]
+            }
+
         # User Name Query (Ask Name)
         if any(phrase in clean.lower() for phrase in ["what is my name", "do you know my name", "tell me my name", "mera naam kya", "mera naam batao"]):
             facts = self.memory.get_all_facts()

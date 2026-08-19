@@ -284,3 +284,48 @@ class SystemControl:
             "total_all_gb": total_all_gb,
             "free_all_gb": free_all_gb
         }
+
+    def toggle_hotspot(self, enable: bool = True) -> Dict[str, Any]:
+        """Toggles Windows 11 Mobile Hotspot ON or OFF natively via WinRT API."""
+        method = "StartTetheringAsync" if enable else "StopTetheringAsync"
+        action_name = "ON" if enable else "OFF"
+        logger.info(f"Toggling Windows 11 Mobile Hotspot: {action_name}...")
+
+        ps_content = f"""
+$Null = [Windows.Networking.Connectivity.NetworkInformation, Windows.Networking.Connectivity, ContentType = WindowsRuntime]
+$Null = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager, Windows.Networking.NetworkOperators, ContentType = WindowsRuntime]
+
+$profile = [Windows.Networking.Connectivity.NetworkInformation]::GetInternetConnectionProfile()
+if (-not $profile) {{
+    Write-Output "NO_PROFILE"
+    exit 1
+}}
+
+$mgr = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager]::CreateFromConnectionProfile($profile)
+if (-not $mgr) {{
+    Write-Output "NO_MANAGER"
+    exit 1
+}}
+
+$asyncOp = $mgr.{method}()
+Start-Sleep -Seconds 2
+Write-Output "STATE: $($mgr.TetheringOperationalState)"
+"""
+
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix='.ps1', delete=False, mode='w', encoding='utf-8') as f:
+            f.write(ps_content)
+            tmp_script = f.name
+
+        try:
+            res = subprocess.run(['powershell', '-ExecutionPolicy', 'Bypass', '-File', tmp_script], capture_output=True, text=True, timeout=10)
+            out = res.stdout.strip()
+            state_str = "ON" if "STATE: On" in out else "OFF" if "STATE: Off" in out else "UNKNOWN"
+            success = "STATE: On" in out if enable else "STATE: Off" in out
+            return {"status": "success" if success else "warning", "state": state_str, "enabled": enable}
+        except Exception as e:
+            logger.error(f"Failed to toggle hotspot: {e}")
+            return {"status": "error", "message": str(e)}
+        finally:
+            if os.path.exists(tmp_script):
+                os.remove(tmp_script)
