@@ -110,6 +110,51 @@ class PlannerAgent:
                 "delegations": [{"agent": "windows_agent", "action": "toggle_hotspot", "params": {"enable": False}}]
             }
 
+        # Wi-Fi fast-path (English & Hinglish)
+        if any(k in clean for k in ["wifi on", "turn on wifi", "enable wifi", "wifi chalao", "wifi kholo", "wifi chalu", "wifi enable", "wi-fi on"]):
+            return True, {
+                "thought": "Fast-path triggered: Turning ON Wi-Fi.",
+                "speech_reply": f"Ji {sir}, aapka Wi-Fi ON kar diya gaya hai.",
+                "delegations": [{"agent": "windows_agent", "action": "toggle_wifi", "params": {"enable": True}}]
+            }
+
+        if any(k in clean for k in ["wifi off", "turn off wifi", "disable wifi", "wifi band", "stop wifi", "close wifi", "wi-fi off"]):
+            return True, {
+                "thought": "Fast-path triggered: Turning OFF Wi-Fi.",
+                "speech_reply": f"Ji {sir}, aapka Wi-Fi OFF kar diya gaya hai.",
+                "delegations": [{"agent": "windows_agent", "action": "toggle_wifi", "params": {"enable": False}}]
+            }
+
+        # Bluetooth fast-path (English & Hinglish)
+        if any(k in clean for k in ["bluetooth on", "turn on bluetooth", "enable bluetooth", "bluetooth chalao", "bluetooth kholo", "bluetooth chalu", "bluetooth enable", "bluwtooth on"]):
+            return True, {
+                "thought": "Fast-path triggered: Turning ON Bluetooth.",
+                "speech_reply": f"Ji {sir}, aapka Bluetooth ON kar diya gaya hai.",
+                "delegations": [{"agent": "windows_agent", "action": "toggle_bluetooth", "params": {"enable": True}}]
+            }
+
+        if any(k in clean for k in ["bluetooth off", "turn off bluetooth", "disable bluetooth", "bluetooth band", "stop bluetooth", "close bluetooth", "bluwtooth off"]):
+            return True, {
+                "thought": "Fast-path triggered: Turning OFF Bluetooth.",
+                "speech_reply": f"Ji {sir}, aapka Bluetooth OFF kar diya gaya hai.",
+                "delegations": [{"agent": "windows_agent", "action": "toggle_bluetooth", "params": {"enable": False}}]
+            }
+
+        # Airplane Mode / Flight Mode fast-path (English & Hinglish)
+        if any(k in clean for k in ["airplane mode on", "flight mode on", "turn on airplane mode", "enable airplane mode", "airplane mode chalao", "airplane mode chalu"]):
+            return True, {
+                "thought": "Fast-path triggered: Turning ON Airplane Mode.",
+                "speech_reply": f"Ji {sir}, aapka Airplane Mode ON kar diya gaya hai.",
+                "delegations": [{"agent": "windows_agent", "action": "toggle_airplane_mode", "params": {"enable": True}}]
+            }
+
+        if any(k in clean for k in ["airplane mode off", "flight mode off", "turn off airplane mode", "disable airplane mode", "airplane mode band", "stop airplane mode"]):
+            return True, {
+                "thought": "Fast-path triggered: Turning OFF Airplane Mode.",
+                "speech_reply": f"Ji {sir}, aapka Airplane Mode OFF kar diya gaya hai.",
+                "delegations": [{"agent": "windows_agent", "action": "toggle_airplane_mode", "params": {"enable": False}}]
+            }
+
         # User Name Query (Ask Name)
         if any(phrase in clean.lower() for phrase in ["what is my name", "do you know my name", "tell me my name", "mera naam kya", "mera naam batao"]):
             facts = self.memory.get_all_facts()

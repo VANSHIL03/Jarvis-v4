@@ -329,3 +329,65 @@ Write-Output "STATE: $($mgr.TetheringOperationalState)"
         finally:
             if os.path.exists(tmp_script):
                 os.remove(tmp_script)
+
+    def toggle_wifi(self, enable: bool = True) -> Dict[str, Any]:
+        """Toggles Windows 11 Wi-Fi ON or OFF natively via NetAdapter."""
+        action_name = "ON" if enable else "OFF"
+        ps_action = "Enable-NetAdapter" if enable else "Disable-NetAdapter"
+        logger.info(f"Toggling Wi-Fi: {action_name}...")
+
+        ps_content = f"Get-NetAdapter | Where-Object {{ $_.Name -like '*Wi-Fi*' -or $_.InterfaceDescription -like '*Wireless*' }} | {ps_action} -Confirm:$false"
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix='.ps1', delete=False, mode='w', encoding='utf-8') as f:
+            f.write(ps_content)
+            tmp_script = f.name
+
+        try:
+            res = subprocess.run(['powershell', '-ExecutionPolicy', 'Bypass', '-File', tmp_script], capture_output=True, text=True, timeout=10)
+            success = res.returncode == 0
+            return {"status": "success" if success else "error", "enabled": enable, "state": action_name}
+        except Exception as e:
+            logger.error(f"Failed to toggle Wi-Fi: {e}")
+            return {"status": "error", "message": str(e)}
+        finally:
+            if os.path.exists(tmp_script):
+                os.remove(tmp_script)
+
+    def toggle_bluetooth(self, enable: bool = True) -> Dict[str, Any]:
+        """Toggles Windows 11 Bluetooth ON or OFF natively via PnP Device."""
+        action_name = "ON" if enable else "OFF"
+        ps_action = "Enable-PnpDevice" if enable else "Disable-PnpDevice"
+        logger.info(f"Toggling Bluetooth: {action_name}...")
+
+        ps_content = f"Get-PnpDevice | Where-Object {{ $_.FriendlyName -like '*Bluetooth Adapter*' }} | {ps_action} -Confirm:$false"
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix='.ps1', delete=False, mode='w', encoding='utf-8') as f:
+            f.write(ps_content)
+            tmp_script = f.name
+
+        try:
+            res = subprocess.run(['powershell', '-ExecutionPolicy', 'Bypass', '-File', tmp_script], capture_output=True, text=True, timeout=10)
+            success = res.returncode == 0
+            return {"status": "success" if success else "error", "enabled": enable, "state": action_name}
+        except Exception as e:
+            logger.error(f"Failed to toggle Bluetooth: {e}")
+            return {"status": "error", "message": str(e)}
+        finally:
+            if os.path.exists(tmp_script):
+                os.remove(tmp_script)
+
+    def toggle_airplane_mode(self, enable: bool = True) -> Dict[str, Any]:
+        """Toggles Windows 11 Airplane Mode ON (disables all radios) or OFF (enables all radios)."""
+        action_name = "ON" if enable else "OFF"
+        logger.info(f"Toggling Airplane Mode: {action_name}...")
+
+        # Airplane Mode ON -> Turn OFF Wi-Fi, Bluetooth, & Mobile Hotspot
+        # Airplane Mode OFF -> Turn ON Wi-Fi & Bluetooth
+        radio_state = not enable
+        res_w = self.toggle_wifi(enable=radio_state)
+        res_b = self.toggle_bluetooth(enable=radio_state)
+        if enable:
+            self.toggle_hotspot(enable=False)
+
+        success = res_w.get("status") == "success" and res_b.get("status") == "success"
+        return {"status": "success" if success else "warning", "state": action_name, "enabled": enable}

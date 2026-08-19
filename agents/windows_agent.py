@@ -90,6 +90,42 @@ class WindowsAgent(BaseAgent):
             speech = "Ji Sir, aapka Windows Mobile Hotspot OFF kar diya gaya hai."
             return {"status": res.get("status", "success"), "state": "OFF", "speech_reply": speech}
 
+        elif action in ["toggle_wifi", "enable_wifi", "turn_on_wifi", "wifi_on"]:
+            enable = params.get("enable", True)
+            res = self.sys_control.toggle_wifi(enable=enable)
+            state_text = "ON" if enable else "OFF"
+            speech = f"Ji Sir, aapka Wi-Fi {state_text} kar diya gaya hai."
+            return {"status": res.get("status", "success"), "state": state_text, "speech_reply": speech}
+
+        elif action in ["disable_wifi", "turn_off_wifi", "wifi_off"]:
+            res = self.sys_control.toggle_wifi(enable=False)
+            speech = "Ji Sir, aapka Wi-Fi OFF kar diya gaya hai."
+            return {"status": res.get("status", "success"), "state": "OFF", "speech_reply": speech}
+
+        elif action in ["toggle_bluetooth", "enable_bluetooth", "turn_on_bluetooth", "bluetooth_on"]:
+            enable = params.get("enable", True)
+            res = self.sys_control.toggle_bluetooth(enable=enable)
+            state_text = "ON" if enable else "OFF"
+            speech = f"Ji Sir, aapka Bluetooth {state_text} kar diya gaya hai."
+            return {"status": res.get("status", "success"), "state": state_text, "speech_reply": speech}
+
+        elif action in ["disable_bluetooth", "turn_off_bluetooth", "bluetooth_off"]:
+            res = self.sys_control.toggle_bluetooth(enable=False)
+            speech = "Ji Sir, aapka Bluetooth OFF kar diya gaya hai."
+            return {"status": res.get("status", "success"), "state": "OFF", "speech_reply": speech}
+
+        elif action in ["toggle_airplane_mode", "enable_airplane_mode", "turn_on_airplane_mode", "airplane_mode_on", "flight_mode_on"]:
+            enable = params.get("enable", True)
+            res = self.sys_control.toggle_airplane_mode(enable=enable)
+            state_text = "ON" if enable else "OFF"
+            speech = f"Ji Sir, aapka Airplane Mode {state_text} kar diya gaya hai."
+            return {"status": res.get("status", "success"), "state": state_text, "speech_reply": speech}
+
+        elif action in ["disable_airplane_mode", "turn_off_airplane_mode", "airplane_mode_off", "flight_mode_off"]:
+            res = self.sys_control.toggle_airplane_mode(enable=False)
+            speech = "Ji Sir, aapka Airplane Mode OFF kar diya gaya hai."
+            return {"status": res.get("status", "success"), "state": "OFF", "speech_reply": speech}
+
         elif action == "take_screenshot":
             path = params.get("path", "screenshot.png")
             out = self.input_control.take_screenshot(path)
