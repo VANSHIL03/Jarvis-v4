@@ -157,7 +157,10 @@ def install_windows_startup():
         f.write(f'@echo off\ncd /d "{BASE_DIR}"\n"{python_exe}" "{BASE_DIR / "wake_listener.py"}"\n')
 
     # 2. Create silent VBScript startup shortcut
-    vbs_content = f'Set WshShell = CreateObject("WScript.Shell")\nWshShell.Run "\"{bat_path}\"", 0, False\n'
+    vbs_content = (
+        'Set WshShell = CreateObject("WScript.Shell")\n'
+        f'WshShell.Run chr(34) & "{bat_path}" & chr(34), 0, False\n'
+    )
     with open(vbs_path, "w", encoding="utf-8") as f:
         f.write(vbs_content)
 
