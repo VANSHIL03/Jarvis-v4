@@ -73,7 +73,7 @@ class JarvisMainWindow(QMainWindow):
         # Dark Futuristic Window Styling
         self.setStyleSheet("""
             QMainWindow {
-                background-color: #060911;
+                background-color: #000000;
             }
         """)
 

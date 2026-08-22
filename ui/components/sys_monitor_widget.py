@@ -20,7 +20,7 @@ class SystemMonitorWidget(QWidget):
 
         self.setStyleSheet("""
             QWidget {
-                background-color: rgba(6, 10, 20, 230);
+                background-color: transparent;
                 border-top: 1px solid rgba(0, 180, 255, 30);
                 color: #88bbdd;
                 font-family: 'Consolas', monospace;
@@ -33,7 +33,7 @@ class SystemMonitorWidget(QWidget):
             QProgressBar {
                 border: 1px solid rgba(0, 180, 255, 60);
                 border-radius: 3px;
-                background-color: rgba(5, 10, 20, 200);
+                background-color: rgba(0, 0, 0, 200);
                 color: #ffffff;
                 font-size: 9px;
                 text-align: center;
@@ -83,7 +83,7 @@ class SystemMonitorWidget(QWidget):
             QProgressBar {{
                 border: 1px solid {color_start}40;
                 border-radius: 3px;
-                background-color: rgba(5, 10, 20, 200);
+                background-color: rgba(0, 0, 0, 200);
                 color: #ffffff;
                 font-size: 9px;
                 text-align: center;

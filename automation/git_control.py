@@ -16,7 +16,13 @@ from utils.logger import logger
 
 class GitControl:
     def __init__(self):
-        pass
+        """
+        Stateless by design -- nothing to initialise.
+
+        Every method takes the repository path it should operate on, and the
+        GitHub token/username come from ``settings`` at call time so that editing
+        .env takes effect without rebuilding this object.
+        """
 
     def _run_git(self, args: list[str], cwd: str) -> tuple[int, str, str]:
         """Helper to run a git command in a target directory."""

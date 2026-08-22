@@ -10,6 +10,11 @@ from pydantic_settings import BaseSettings
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Module-level so other field defaults can be built from it. A pydantic field
+# default cannot reference another field, so paths that live under data/ are
+# derived from this instead of from Settings.DATA_DIR.
+DATA_DIR_DEFAULT = BASE_DIR / "data"
+
 class Settings(BaseSettings):
     BASE_DIR: Path = BASE_DIR
     # Assistant Metadata
@@ -30,9 +35,9 @@ class Settings(BaseSettings):
     SYSTEM_POLL_INTERVAL: float = 1.0  # seconds
 
     # Database & Storage Paths
-    DATA_DIR: Path = BASE_DIR / "data"
-    DB_PATH: Path = DATA_DIR / "jarvis.db"
-    VECTOR_DB_DIR: Path = DATA_DIR / "vector_store"
+    DATA_DIR: Path = DATA_DIR_DEFAULT
+    DB_PATH: Path = DATA_DIR_DEFAULT / "jarvis.db"
+    VECTOR_DB_DIR: Path = DATA_DIR_DEFAULT / "vector_store"
     LOGS_DIR: Path = BASE_DIR / "logs"
 
     # Speech Configuration
@@ -49,6 +54,21 @@ class Settings(BaseSettings):
 
     # Safety & Security
     SAFETY_CONFIRMATION_REQUIRED: bool = True
+
+    # Where the user's per-tool permission overrides live. PermissionPolicy reads
+    # this file if it exists; a missing file simply means "use the built-in
+    # four-tier defaults", so deleting it is a safe way to reset the policy.
+    PERMISSIONS_FILE: Path = DATA_DIR_DEFAULT / "permissions.json"
+
+    # How long a pending "haan ya na" confirmation stays answerable. After this
+    # the held action is discarded WITHOUT executing, so a forgotten prompt can
+    # never fire later when the user has moved on.
+    CONFIRMATION_TTL_SECONDS: float = 120.0
+
+    # Lifetime of SHORT_TERM memories ("kal doctor ke paas jana hai"). They are
+    # purged from both SQLite and the vector store once this many days pass.
+    MEMORY_SHORT_TERM_TTL_DAYS: int = 7
+
     GITHUB_TOKEN: str = ""
     GITHUB_USERNAME: str = ""
     EMAIL_ADDRESS: str = ""

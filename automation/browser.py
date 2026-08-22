@@ -167,6 +167,50 @@ class PlaywrightBrowser:
         logger.info(f"Opening Google Maps directions to '{destination}': {dir_url}")
         return await self.open_url(dir_url)
 
+    async def download_file(self, url: str, save_dir: str = "", file_name: str = "") -> Dict[str, Any]:
+        """
+        Streams a file from `url` into the Downloads folder.
+
+        httpx is used rather than a browser download so the bytes never touch a
+        page context and the saved path is known exactly -- the caller has to be
+        able to tell the user where the file went.
+        """
+        from pathlib import Path
+
+        if not url:
+            return {"status": "error", "message": "No URL given to download."}
+        if not url.startswith("http"):
+            url = f"https://{url}"
+
+        target_dir = Path(save_dir) if save_dir else (Path.home() / "Downloads")
+        name = file_name or urllib.parse.unquote(url.split("?")[0].rstrip("/").split("/")[-1])
+        if not name or "." not in name:
+            name = name or "download"
+        target = target_dir / name
+
+        try:
+            target_dir.mkdir(parents=True, exist_ok=True)
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+            written = 0
+            async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+                async with client.stream("GET", url, headers=headers) as resp:
+                    if resp.status_code >= 400:
+                        return {
+                            "status": "error",
+                            "url": url,
+                            "http_status": resp.status_code,
+                            "message": f"Server ne {resp.status_code} return kiya.",
+                        }
+                    with open(target, "wb") as handle:
+                        async for chunk in resp.aiter_bytes(65536):
+                            handle.write(chunk)
+                            written += len(chunk)
+            logger.info(f"Downloaded {written} bytes to {target}")
+            return {"status": "success", "url": url, "path": str(target), "bytes": written}
+        except Exception as e:
+            logger.error(f"Download failed for '{url}': {e}")
+            return {"status": "error", "url": url, "message": str(e)}
+
     async def close_browser(self):
         """Closes Playwright browser instance."""
         if self._browser:

@@ -69,6 +69,30 @@ class StarkHudWidget(QWidget):
         self.ring_rotation[1] -= 0.6
         self.ring_rotation[2] += 0.8
         self.ring_rotation[3] -= 0.3
+
+        # Update wandering background nodes
+        w = self.width()
+        h = self.height()
+        if not hasattr(self, 'bg_nodes'):
+            self.bg_nodes = []
+            for _ in range(50):
+                self.bg_nodes.append({
+                    "x": random.uniform(0, max(w, 850)),
+                    "y": random.uniform(0, max(h, 520)),
+                    "vx": random.uniform(-0.5, 0.5),
+                    "vy": random.uniform(-0.5, 0.5),
+                    "size": random.uniform(1.0, 3.5),
+                    "alpha": random.randint(20, 100)
+                })
+        else:
+            for node in self.bg_nodes:
+                node["x"] += node["vx"]
+                node["y"] += node["vy"]
+                if node["x"] < 0: node["x"] = w
+                elif node["x"] > w: node["x"] = 0
+                if node["y"] < 0: node["y"] = h
+                elif node["y"] > h: node["y"] = 0
+
         self.update()
 
     def mouseMoveEvent(self, event):
@@ -98,7 +122,26 @@ class StarkHudWidget(QWidget):
         size = min(w, h) * 0.95
 
         # Pitch Black Sci-Fi Background
-        painter.fillRect(self.rect(), QColor(4, 7, 14))
+        painter.fillRect(self.rect(), QColor(0, 0, 0))
+
+        # Draw wandering background nodes and connections
+        if hasattr(self, 'bg_nodes'):
+            for i, n1 in enumerate(self.bg_nodes):
+                # Draw node
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(QBrush(QColor(0, 180, 255, n1["alpha"])))
+                painter.drawEllipse(QPointF(n1["x"], n1["y"]), n1["size"], n1["size"])
+                # Draw connections
+                for j in range(i + 1, len(self.bg_nodes)):
+                    n2 = self.bg_nodes[j]
+                    dx = n1["x"] - n2["x"]
+                    dy = n1["y"] - n2["y"]
+                    dist_sq = dx*dx + dy*dy
+                    if dist_sq < 15000:  # Connect if close enough
+                        conn_alpha = int(max(0, (1 - dist_sq / 15000)) * min(n1["alpha"], n2["alpha"]) * 0.8)
+                        if conn_alpha > 0:
+                            painter.setPen(QPen(QColor(0, 180, 255, conn_alpha), 0.5))
+                            painter.drawLine(QPointF(n1["x"], n1["y"]), QPointF(n2["x"], n2["y"]))
 
         glow_intensity = 0.5 + 0.5 * self.amplitude
         cyan_bright = QColor(0, 240, 255, int(240 * glow_intensity))

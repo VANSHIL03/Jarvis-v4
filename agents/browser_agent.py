@@ -20,7 +20,7 @@ class BrowserAgent(BaseAgent):
 
     async def execute_task(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
         action = action.lower()
-        if action == "open_url":
+        if action in ["open_url", "open_website", "open_site", "browse"]:
             url = params.get("url", "")
             success = await self.browser.open_url(url)
             return {"status": "success" if success else "error", "url": url}
@@ -65,5 +65,17 @@ class BrowserAgent(BaseAgent):
             origin = params.get("origin", "")
             success = await self.browser.get_maps_directions(destination, origin)
             return {"status": "success" if success else "error", "destination": destination, "origin": origin}
+
+        elif action in ["download", "download_file", "save_file"]:
+            url = params.get("url", "")
+            save_dir = params.get("save_dir", "")
+            file_name = params.get("file_name", "")
+            res = await self.browser.download_file(url, save_dir=save_dir, file_name=file_name)
+            if res.get("status") == "success":
+                res.setdefault(
+                    "speech_reply",
+                    f"Ji Sir, file download ho gayi: {res.get('path', '')}",
+                )
+            return res
 
         return {"status": "error", "message": f"Unknown browser action: '{action}'"}

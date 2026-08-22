@@ -34,7 +34,8 @@ class CodingAgent(BaseAgent):
             prompt = params.get("prompt", f"Create a production quality {language} project")
             sys_prompt = f"You are an expert {language} software developer. Generate complete, clean, working production code with comments."
             code = await self.llm.generate_response(prompt=prompt, system_prompt=sys_prompt)
-            if "offline standby mode" in code or not code.strip():
+            code_lower = code.lower()
+            if "offline standby mode" in code_lower or "error communicating" in code_lower or "returned status" in code_lower or not code.strip():
                 code = self._get_fallback_code(prompt, language)
 
             res = self.vscode.create_project_and_code(
@@ -54,7 +55,8 @@ class CodingAgent(BaseAgent):
             prompt = params.get("prompt", params.get("user_input", "Write clean python code"))
             sys_prompt = f"You are an expert {language} software developer. Generate clean, efficient, working code with comments."
             code = await self.llm.generate_response(prompt=prompt, system_prompt=sys_prompt)
-            if "offline standby mode" in code or not code.strip():
+            code_lower = code.lower()
+            if "offline standby mode" in code_lower or "error communicating" in code_lower or "returned status" in code_lower or not code.strip():
                 code = self._get_fallback_code(prompt, language)
 
             notepad_path = self._open_in_notepad(code, language)
@@ -89,9 +91,48 @@ class CodingAgent(BaseAgent):
                 "speech_reply": "Ji Sir, maine code ko debug karke corrected code Notepad me open kar diya hai."
             }
 
-        elif action == "run_python_sandbox":
+        elif action in ("run_python_sandbox", "run_code", "execute_code", "run_python"):
             code = params.get("code", "")
-            return self._run_python_sandbox(code)
+            if not str(code).strip():
+                return {
+                    "status": "error",
+                    "message": "No code supplied to run.",
+                    "speech_reply": "Sir, run karne ke liye code to dijiye.",
+                }
+            language = str(params.get("language", "python")).lower()
+            if language not in ("", "python", "py", "python3"):
+                # Only Python has a sandboxed runner here. Silently running it
+                # through the Python interpreter would be worse than refusing.
+                return {
+                    "status": "error",
+                    "language": language,
+                    "message": f"Sandboxed execution is only available for Python, not {language}.",
+                    "speech_reply": (
+                        f"Sir, main sirf Python code hi safely run kar sakta hoon, "
+                        f"{language} nahi."
+                    ),
+                }
+            return self._run_python_sandbox(code, timeout=int(params.get("timeout", 10) or 10))
+
+        elif action in ("open_vscode", "open_in_vscode", "launch_vscode", "open_editor"):
+            folder = params.get("folder_path") or params.get("path") or ""
+            file_path = params.get("file_path") or None
+            if not folder and file_path:
+                from pathlib import Path as _Path
+                folder = str(_Path(file_path).parent)
+            if not folder:
+                from pathlib import Path as _Path
+                folder = str(_Path.home() / "Desktop")
+            ok = self.vscode.open_in_vscode(folder, file_path=file_path)
+            return {
+                "status": "success" if ok else "error",
+                "folder_path": folder,
+                "file_path": file_path or "",
+                "speech_reply": (
+                    f"Ji Sir, VS Code me '{folder}' khol diya hai."
+                    if ok else "Sir, VS Code open nahi ho paya - kya wo installed hai?"
+                ),
+            }
 
         return {"status": "error", "message": f"Unknown coding action: '{action}'"}
 
@@ -215,26 +256,67 @@ if __name__ == "__main__":
             logger.warning(f"Could not open Notepad for generated code: {e}")
             return None
 
-    def _run_python_sandbox(self, code: str) -> Dict[str, Any]:
-        """Executes Python snippet safely in temporary subprocess sandbox."""
-        with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False, encoding="utf-8") as tmp:
-            tmp.write(code)
-            tmp_path = tmp.name
+    def _run_python_sandbox(self, code: str, timeout: int = 10) -> Dict[str, Any]:
+        """
+        Executes a Python snippet in a throwaway subprocess.
 
+        Section 15 forbids running untrusted code with unrestricted privileges,
+        so the child is constrained in four ways: it starts in its own empty temp
+        directory (a stray open("out.txt","w") cannot touch the project), runs
+        under -I so PYTHONPATH and the user site-dir cannot inject code, gets an
+        environment with credential-shaped variables stripped (Section 14), and
+        is killed on timeout. This is a guard rail, not a jail -- generated code
+        still runs as this user, which is why run_code is confirmation-gated.
+        """
+        import os
+        import shutil
+
+        workdir = tempfile.mkdtemp(prefix="JARVIS_Run_")
+        script = os.path.join(workdir, "snippet.py")
         try:
+            with open(script, "w", encoding="utf-8") as handle:
+                handle.write(code)
+
+            child_env = {
+                k: v for k, v in os.environ.items()
+                if not any(
+                    marker in k.upper()
+                    for marker in ("TOKEN", "SECRET", "PASSWORD", "PASSWD", "API_KEY", "APIKEY", "CREDENTIAL")
+                )
+            }
+            child_env["PYTHONIOENCODING"] = "utf-8"
+
             res = subprocess.run(
-                [sys.executable, tmp_path],
+                [sys.executable, "-I", script],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=max(1, int(timeout)),
+                cwd=workdir,
+                env=child_env,
             )
+            stdout = (res.stdout or "")[:8000]
+            stderr = (res.stderr or "")[:4000]
+            ok = res.returncode == 0
             return {
-                "status": "success" if res.returncode == 0 else "error",
-                "stdout": res.stdout,
-                "stderr": res.stderr,
-                "exit_code": res.returncode
+                "status": "success" if ok else "error",
+                "stdout": stdout,
+                "stderr": stderr,
+                "exit_code": res.returncode,
+                "message": "" if ok else f"Code exit code {res.returncode} ke saath fail hua.",
+                "speech_reply": (
+                    f"Ji Sir, code chal gaya. Output: {stdout.strip()[:200]}"
+                    if ok else
+                    f"Sir, code error de raha hai: {stderr.strip()[:200]}"
+                ),
             }
         except subprocess.TimeoutExpired:
-            return {"status": "error", "stderr": "Execution timed out after 10 seconds."}
+            return {
+                "status": "error",
+                "stderr": f"Execution timed out after {timeout} seconds.",
+                "message": "Execution timed out.",
+                "speech_reply": f"Sir, code {timeout} second me khatam nahi hua, isliye main use rok diya.",
+            }
         except Exception as e:
-            return {"status": "error", "stderr": str(e)}
+            return {"status": "error", "stderr": str(e), "message": str(e)}
+        finally:
+            shutil.rmtree(workdir, ignore_errors=True)
