@@ -100,3 +100,70 @@ class OfficeAutomation:
             except Exception as ex:
                 logger.error(f"pdfplumber failed: {ex}")
                 return ""
+
+    def create_pdf(self, file_path: str, title: str = "", body: str = "") -> Dict[str, Any]:
+        """
+        Writes a PDF.
+
+        reportlab is used when present. Without it the text is still saved -- as a
+        .docx via python-docx, or a .txt as a last resort -- rather than failing,
+        because losing a summary the user just asked for is worse than getting it
+        in a different container.
+        """
+        target = Path(file_path)
+        paragraphs = [p.strip() for p in str(body or "").split("\n") if p.strip()]
+
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.styles import getSampleStyleSheet
+            from reportlab.lib.units import mm
+            from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+            from xml.sax.saxutils import escape
+
+            target.parent.mkdir(parents=True, exist_ok=True)
+            styles = getSampleStyleSheet()
+            story = []
+            if title:
+                story.append(Paragraph(escape(str(title)), styles["Title"]))
+                story.append(Spacer(1, 6 * mm))
+            for para in paragraphs or ["(empty document)"]:
+                story.append(Paragraph(escape(para), styles["BodyText"]))
+                story.append(Spacer(1, 3 * mm))
+
+            SimpleDocTemplate(
+                str(target), pagesize=A4,
+                leftMargin=18 * mm, rightMargin=18 * mm,
+                topMargin=18 * mm, bottomMargin=18 * mm,
+            ).build(story)
+            logger.info(f"PDF created: {target}")
+            return {"status": "success", "path": str(target), "engine": "reportlab"}
+        except ImportError:
+            logger.warning("reportlab not installed; falling back to .docx / .txt output.")
+        except Exception as e:
+            logger.error(f"reportlab PDF creation failed: {e}")
+
+        docx_path = target.with_suffix(".docx")
+        if self.create_word_document(str(docx_path), title or target.stem, paragraphs):
+            return {
+                "status": "success",
+                "path": str(docx_path),
+                "engine": "docx-fallback",
+                "message": "reportlab missing, saved as .docx instead of .pdf.",
+            }
+
+        txt_path = target.with_suffix(".txt")
+        try:
+            txt_path.parent.mkdir(parents=True, exist_ok=True)
+            txt_path.write_text(
+                (f"{title}\n\n" if title else "") + "\n\n".join(paragraphs), encoding="utf-8"
+            )
+            return {
+                "status": "success",
+                "path": str(txt_path),
+                "engine": "text-fallback",
+                "message": "No PDF or DOCX writer available, saved as .txt.",
+            }
+        except Exception as e:
+            logger.error(f"Failed to write any document for '{file_path}': {e}")
+            return {"status": "error", "message": str(e)}
+

@@ -70,8 +70,50 @@ class WindowsAgent(BaseAgent):
 
         elif action in ["launch_game", "open_game", "play_game"]:
             game = params.get("game_name", params.get("app_name", ""))
-            res = self.sys_control.launch_game(game)
+            # Games are launched through the same Start-menu resolver as any other
+            # app; SystemControl has no separate game launcher.
+            res = self.sys_control.launch_app(game)
             return {"status": "success" if res else "error", "game": game}
+
+        elif action in ["close_app", "close_application", "close_window", "kill_app"]:
+            app = params.get("app_name", params.get("window", ""))
+            res = self.sys_control.close_app(app)
+            res.setdefault("speech_reply", (
+                f"Ji Sir, {app} band kar diya hai."
+                if res.get("status") == "success"
+                else f"Sir, '{app}' chal hi nahi raha tha."
+            ))
+            return res
+
+        elif action in ["focus_window", "switch_window", "activate_window", "bring_to_front"]:
+            target = params.get("window", params.get("app_name", ""))
+            res = self.sys_control.focus_window(target)
+            res.setdefault("speech_reply", (
+                f"Ji Sir, {target} saamne le aaya hoon."
+                if res.get("status") == "success"
+                else f"Sir, '{target}' ka koi open window nahi mila."
+            ))
+            return res
+
+        elif action in ["minimize_window", "minimise_window", "minimize"]:
+            target = params.get("window", params.get("app_name", ""))
+            res = self.sys_control.minimize_window(target)
+            res.setdefault("speech_reply", (
+                f"Ji Sir, {target} minimize kar diya."
+                if res.get("status") == "success"
+                else f"Sir, '{target}' ka koi open window nahi mila."
+            ))
+            return res
+
+        elif action in ["maximize_window", "maximise_window", "maximize"]:
+            target = params.get("window", params.get("app_name", ""))
+            res = self.sys_control.maximize_window(target)
+            res.setdefault("speech_reply", (
+                f"Ji Sir, {target} maximize kar diya."
+                if res.get("status") == "success"
+                else f"Sir, '{target}' ka koi open window nahi mila."
+            ))
+            return res
 
         elif action == "type_text":
             text = params.get("text", "")
@@ -129,6 +171,19 @@ class WindowsAgent(BaseAgent):
         elif action == "take_screenshot":
             path = params.get("path", "screenshot.png")
             out = self.input_control.take_screenshot(path)
-            return {"status": "success", "file_path": out}
+            # take_screenshot returns "" when the grab fails; reporting success
+            # with an empty path would tell the user a file exists that does not.
+            if not out:
+                return {
+                    "status": "error",
+                    "message": "Screenshot could not be captured.",
+                    "speech_reply": "Sir, screenshot le nahi paya.",
+                }
+            return {
+                "status": "success",
+                "file_path": out,
+                "path": out,
+                "speech_reply": f"Ji Sir, screenshot save kar diya hai: {out}",
+            }
 
         return {"status": "error", "message": f"Unknown windows action: '{action}'"}

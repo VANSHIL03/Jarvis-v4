@@ -28,7 +28,7 @@ class ChatWidget(QWidget):
                 color: #e0f7ff;
             }
             QTextEdit {
-                background-color: rgba(5, 8, 15, 200);
+                background-color: rgba(0, 0, 0, 200);
                 border: 1px solid rgba(0, 180, 255, 40);
                 border-radius: 6px;
                 color: #d8f3ff;
@@ -37,7 +37,7 @@ class ChatWidget(QWidget):
                 padding: 8px;
             }
             QLineEdit {
-                background-color: rgba(10, 18, 35, 220);
+                background-color: rgba(0, 0, 0, 220);
                 border: 1px solid rgba(0, 180, 255, 80);
                 border-radius: 6px;
                 color: #ffffff;
@@ -150,7 +150,7 @@ class ChatWidget(QWidget):
         import html
         escaped_code = html.escape(code_text.strip())
         code_html = (
-            f"<div style='margin-top: 4px; margin-bottom: 6px; background-color: rgba(10, 20, 35, 230); "
+            f"<div style='margin-top: 4px; margin-bottom: 6px; background-color: rgba(0, 0, 0, 230); "
             f"border: 1px solid #00d2ff; border-radius: 6px; padding: 8px; font-family: Consolas, monospace; font-size: 11px;'>"
             f"<b style='color: #00e5ff;'>[{language.upper()}] OUTPUT:</b><br/>"
             f"<pre style='color: #a0f0ff; margin: 4px 0 0 0; white-space: pre-wrap;'>{escaped_code}</pre>"

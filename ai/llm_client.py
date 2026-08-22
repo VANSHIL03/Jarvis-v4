@@ -13,7 +13,7 @@ class LocalLLMClient:
         self.base_url = settings.OLLAMA_BASE_URL
         self.default_model = settings.DEFAULT_MODEL
         self.fallback_model = settings.FALLBACK_MODEL
-        self.client = httpx.AsyncClient(timeout=60.0)
+        self.client = httpx.AsyncClient(timeout=300.0)
 
     async def is_server_available(self) -> bool:
         """Checks if local Ollama server is running."""
@@ -63,7 +63,7 @@ class LocalLLMClient:
                 payload["system"] = system_prompt
 
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=300.0) as client:
                 resp = await client.post(endpoint, json=payload)
                 if resp.status_code == 200:
                     data = resp.json()
@@ -74,8 +74,8 @@ class LocalLLMClient:
                     logger.error(f"Ollama error {resp.status_code}: {resp.text}")
                     return f"Local LLM service returned status {resp.status_code}."
         except Exception as e:
-            logger.error(f"Exception calling local LLM: {e}")
-            return f"Error communicating with local AI model: {e}"
+            logger.error(f"Exception calling local LLM: {repr(e)}")
+            return f"Error communicating with local AI model: {repr(e)}"
 
     async def generate_stream(
         self,

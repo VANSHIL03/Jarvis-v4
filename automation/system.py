@@ -36,14 +36,55 @@ class SystemControl:
         }
 
     def launch_app(self, app_name: str) -> bool:
-        """Launches a desktop application by name or executable command."""
+        """Launches a desktop application by dynamically searching Windows Start Menu."""
         name_clean = app_name.lower().strip()
-        cmd = self.app_map.get(name_clean, [app_name])
-        logger.info(f"Launching application: {name_clean} -> {cmd}")
+        logger.info(f"Attempting to launch application: {name_clean}")
 
+        # 1. Check hardcoded rapid map first
+        if name_clean in self.app_map:
+            cmd = self.app_map[name_clean]
+            try:
+                subprocess.Popen(cmd, shell=True)
+                return True
+            except Exception as e:
+                logger.error(f"Failed to launch app '{app_name}' from map: {e}")
+
+        # 2. Dynamically search using Windows Get-StartApps
+        logger.info(f"Searching Start Menu for: {name_clean}")
         try:
-            subprocess.Popen(cmd, shell=True)
-            return True
+            res = subprocess.run(
+                ["powershell", "-Command", "Get-StartApps | Select-Object -Property Name, AppID"],
+                capture_output=True, text=True, timeout=10
+            )
+            best_match = None
+            best_appid = None
+            
+            for line in res.stdout.splitlines():
+                line = line.strip()
+                if not line or "AppID" in line or "---" in line:
+                    continue
+                
+                parts = [p.strip() for p in line.rsplit("  ", 1) if p.strip()]
+                if len(parts) == 2:
+                    p_name = parts[0]
+                    p_appid = parts[1]
+                    if name_clean in p_name.lower():
+                        if name_clean == p_name.lower():
+                            best_match = p_name
+                            best_appid = p_appid
+                            break
+                        elif best_match is None:
+                            best_match = p_name
+                            best_appid = p_appid
+
+            if best_appid:
+                logger.info(f"Found app '{best_match}' with AppID: {best_appid}. Launching...")
+                subprocess.Popen(f'explorer.exe shell:AppsFolder\\{best_appid}', shell=True)
+                return True
+            else:
+                logger.warning(f"App '{name_clean}' not found in Start Menu. Trying fallback...")
+                subprocess.Popen(f"start {app_name}", shell=True)
+                return True
         except Exception as e:
             logger.error(f"Failed to launch app '{app_name}': {e}")
             return False
@@ -122,6 +163,214 @@ class SystemControl:
         except Exception as e:
             logger.error(f"Failed to put PC to sleep: {e}")
             return False
+
+    # ------------------------------------------------------- window controls
+    #: Friendly name -> process image name, used only as a fallback when no
+    #: window title matches. Keeps "close chrome" working when Chrome's window
+    #: is titled after the page rather than the browser.
+    exe_map = {
+        "chrome": "chrome.exe",
+        "google chrome": "chrome.exe",
+        "edge": "msedge.exe",
+        "microsoft edge": "msedge.exe",
+        "vscode": "Code.exe",
+        "vs code": "Code.exe",
+        "visual studio code": "Code.exe",
+        "code": "Code.exe",
+        "notepad": "notepad.exe",
+        "calculator": "CalculatorApp.exe",
+        "calc": "CalculatorApp.exe",
+        "paint": "mspaint.exe",
+        "spotify": "Spotify.exe",
+        "discord": "Discord.exe",
+        "steam": "steam.exe",
+        "word": "WINWORD.EXE",
+        "excel": "EXCEL.EXE",
+        "powerpoint": "POWERPNT.EXE",
+        "vlc": "vlc.exe",
+        "whatsapp": "WhatsApp.exe",
+        "explorer": "explorer.exe",
+        "file explorer": "explorer.exe",
+        "cmd": "cmd.exe",
+        "terminal": "WindowsTerminal.exe",
+        "powershell": "powershell.exe",
+        "firefox": "firefox.exe",
+        "brave": "brave.exe",
+        "telegram": "Telegram.exe",
+        "obs": "obs64.exe",
+        "unity": "Unity.exe",
+    }
+
+    def list_windows(self) -> list:
+        """
+        Every visible top-level window as {hwnd, title, process}.
+
+        Section 12 forbids blind coordinate clicking, so window control is done
+        through real window handles and their accessible titles rather than by
+        guessing where a title bar happens to be on screen.
+        """
+        windows = []
+        try:
+            import win32gui
+            import win32process
+        except Exception as e:
+            logger.warning(f"pywin32 unavailable, window controls disabled: {e}")
+            return windows
+
+        try:
+            import psutil
+        except Exception:
+            psutil = None
+
+        def _visit(hwnd, _):
+            if not win32gui.IsWindowVisible(hwnd):
+                return True
+            title = win32gui.GetWindowText(hwnd) or ""
+            if not title.strip():
+                return True
+            proc_name = ""
+            if psutil is not None:
+                try:
+                    _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                    proc_name = psutil.Process(pid).name()
+                except Exception:
+                    proc_name = ""
+            windows.append({"hwnd": hwnd, "title": title, "process": proc_name})
+            return True
+
+        try:
+            win32gui.EnumWindows(_visit, None)
+        except Exception as e:
+            logger.warning(f"Window enumeration failed: {e}")
+        return windows
+
+    def find_window(self, target: str) -> Optional[Dict[str, Any]]:
+        """Best visible window for a spoken name, matching title then process."""
+        needle = (target or "").strip().lower()
+        if not needle:
+            return None
+
+        candidates = self.list_windows()
+        exe = self.exe_map.get(needle, "").lower()
+
+        # Exact title, then title prefix/substring, then process image name.
+        for match in (
+            lambda w: w["title"].lower() == needle,
+            lambda w: w["title"].lower().startswith(needle),
+            lambda w: needle in w["title"].lower(),
+            lambda w: bool(exe) and w["process"].lower() == exe,
+            lambda w: needle in w["process"].lower().replace(".exe", ""),
+        ):
+            hit = next((w for w in candidates if match(w)), None)
+            if hit:
+                return hit
+        return None
+
+    def _set_window_state(self, target: str, state: str) -> Dict[str, Any]:
+        """Shared implementation for focus/minimize/maximize."""
+        try:
+            import win32con
+            import win32gui
+        except Exception as e:
+            return {"status": "error", "message": f"pywin32 is required for window control: {e}"}
+
+        window = self.find_window(target)
+        if window is None:
+            return {
+                "status": "not_found",
+                "message": f"No open window matching '{target}'.",
+            }
+
+        commands = {
+            "focus": win32con.SW_RESTORE,
+            "minimize": win32con.SW_MINIMIZE,
+            "maximize": win32con.SW_MAXIMIZE,
+        }
+        try:
+            win32gui.ShowWindow(window["hwnd"], commands[state])
+            if state == "focus":
+                try:
+                    win32gui.SetForegroundWindow(window["hwnd"])
+                except Exception as e:
+                    # Windows refuses foreground changes from a background thread
+                    # in some cases; the restore above already un-minimised it.
+                    logger.debug(f"SetForegroundWindow refused for '{target}': {e}")
+            logger.info(f"Window '{window['title']}' -> {state}")
+            return {"status": "success", "window": window["title"], "state": state}
+        except Exception as e:
+            logger.error(f"Failed to {state} window '{target}': {e}")
+            return {"status": "error", "message": str(e)}
+
+    def focus_window(self, target: str) -> Dict[str, Any]:
+        """Restores and brings a window to the foreground."""
+        return self._set_window_state(target, "focus")
+
+    def minimize_window(self, target: str) -> Dict[str, Any]:
+        """Minimises a window to the taskbar."""
+        return self._set_window_state(target, "minimize")
+
+    def maximize_window(self, target: str) -> Dict[str, Any]:
+        """Maximises a window."""
+        return self._set_window_state(target, "maximize")
+
+    def close_app(self, app_name: str) -> Dict[str, Any]:
+        """
+        Closes an application by asking its windows to close.
+
+        WM_CLOSE is used rather than taskkill so the application still gets to
+        prompt about unsaved work; killing the process is only the fallback for
+        an app with no matching visible window.
+        """
+        name = (app_name or "").strip()
+        if not name:
+            return {"status": "error", "message": "No application name given."}
+
+        try:
+            import win32con
+            import win32gui
+        except Exception as e:
+            return {"status": "error", "message": f"pywin32 is required to close apps: {e}"}
+
+        needle = name.lower()
+        exe = self.exe_map.get(needle, "").lower()
+        closed = []
+        for window in self.list_windows():
+            title = window["title"].lower()
+            proc = window["process"].lower()
+            if needle in title or (exe and proc == exe) or (needle in proc.replace(".exe", "")):
+                try:
+                    win32gui.PostMessage(window["hwnd"], win32con.WM_CLOSE, 0, 0)
+                    closed.append(window["title"])
+                except Exception as e:
+                    logger.debug(f"WM_CLOSE failed for '{window['title']}': {e}")
+
+        if closed:
+            logger.info(f"Close requested for {len(closed)} window(s) of '{name}'.")
+            return {
+                "status": "success",
+                "closed": closed,
+                "count": len(closed),
+                "message": f"Closed {len(closed)} window(s) of '{name}'.",
+            }
+
+        if exe:
+            try:
+                res = subprocess.run(
+                    f"taskkill /im {exe}", shell=True,
+                    capture_output=True, text=True, timeout=15
+                )
+                if res.returncode == 0:
+                    logger.info(f"'{name}' terminated via taskkill ({exe}).")
+                    return {
+                        "status": "success",
+                        "closed": [exe],
+                        "count": 1,
+                        "message": f"Closed {name}.",
+                    }
+            except Exception as e:
+                logger.error(f"taskkill for '{exe}' failed: {e}")
+
+        return {"status": "not_found", "message": f"'{name}' does not appear to be running."}
 
     def close_all_user_apps(self) -> bool:
         """Closes all non-critical user background applications safely before shutdown."""

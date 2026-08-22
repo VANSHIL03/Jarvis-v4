@@ -1,15 +1,40 @@
 """
 JARVIS v4 - Executive Planner Agent (Orchestrator)
-Parses user intent, performs silent chain-of-thought reasoning (<thought>), delegates sub-tasks to specialized sub-agents, enforces security rules, and synthesizes natural responses.
+
+Parses user intent, performs silent chain-of-thought reasoning (<thought>),
+turns intent into tool calls, and synthesizes natural responses.
+
+Two routes reach the same destination:
+
+    regex fast-path ─┐
+                     ├─> ToolCall ─> ToolRegistry ─> PermissionPolicy
+    LLM planner ─────┘                             ─> ConfirmationBroker
+                                                   ─> tool execution ─> ToolResult
+
+The ~850-line regex fast-path below is deliberately kept: it answers common
+commands in milliseconds without waiting on a 7B model, and it is far more
+reliable at Hinglish than JSON tool-calling is. What changed is where its output
+goes -- it no longer calls sub-agents directly, it emits the same
+{"agent", "action", "params"} delegations into the registry. So permissions,
+confirmations, parameter validation, logging, error handling and result shape are
+now identical whether a request was matched by regex or planned by the LLM.
+
+The matcher itself is now side-effect free apart from memory writes the user
+explicitly asked for: it identifies the requested operation and nothing more.
+Creating the folder, taking the screenshot and shutting the machine down all
+happen inside tool execution, after the permission gate.
 """
 
 import re
 from pathlib import Path
-from typing import Dict, Any, List
-from config.prompts import PLANNER_AGENT_PROMPT
+from typing import Dict, Any, List, Optional, Tuple
+from config.prompts import build_planner_prompt
 from ai.llm_client import LocalLLMClient
 from memory.memory_manager import MemoryManager
+from security.confirmation import ConfirmationDecision
 from security.safety import SafetyManager
+from tools.base import ToolResult
+from tools.registry import ToolRegistry
 from utils.helpers import parse_json_safely, strip_thought_tags
 from utils.logger import logger
 
@@ -25,11 +50,19 @@ from agents.gaming_agent import GamingAgent
 from agents.git_agent import GitAgent
 from agents.n8n_agent import N8nAgent
 
+from automation.system import SystemControl
 from automation.news_fetcher import NewsFetcher
 from automation.reminder_manager import ReminderManager
 from automation.shopping import ShoppingAutomation
 from automation.food_delivery import FoodDeliveryAutomation
 from automation.n8n_workflow_manager import N8nWorkflowManager
+
+#: Delegation "agents" the LLM invents when it means "just say this" -- skipped.
+PSEUDO_AGENTS = {
+    "speech_reply", "speech", "reply", "none", "null", "llm", "user",
+    "assistant", "jarvis", "self", "",
+}
+
 
 class PlannerAgent:
     def __init__(
@@ -37,7 +70,8 @@ class PlannerAgent:
         llm_client: LocalLLMClient,
         memory_manager: MemoryManager,
         safety_manager: SafetyManager,
-        agents: Dict[str, Any]
+        agents: Dict[str, Any],
+        registry: Optional[ToolRegistry] = None,
     ):
         self.llm = llm_client
         self.memory = memory_manager
@@ -53,6 +87,28 @@ class PlannerAgent:
         if "vision_agent" not in self.sub_agents:
             from agents.vision_agent import VisionAgent
             self.sub_agents["vision_agent"] = VisionAgent()
+
+        # Every capability runs through here. main.py passes the registry it
+        # already built so the GUI, voice loop and phone server share one policy
+        # and one pending-confirmation state; building a fallback keeps the
+        # planner constructible on its own (tests, scripts).
+        if registry is None:
+            from tools import build_registry
+
+            registry = build_registry(
+                agents=self.sub_agents,
+                policy=getattr(self.safety, "policy", None),
+                db=getattr(self.memory, "db", None),
+            )
+            logger.info(f"PlannerAgent built its own tool registry ({len(registry)} tools).")
+        self.registry = registry
+        self.registry.bind_agents(self.sub_agents)
+        self.safety.attach(registry=self.registry)
+
+        # Rendered once: the catalogue is fixed for the process lifetime, and the
+        # prompt must describe the tools that actually exist rather than a
+        # hand-maintained list that drifts out of date.
+        self.planner_prompt = build_planner_prompt(self.registry)
 
     def _get_user_salutation(self) -> str:
         """Dynamically retrieves remembered user name or defaults to Sir."""
@@ -220,6 +276,82 @@ class PlannerAgent:
                 "speech_reply": "Ji Sir, project GitHub pe push kar raha hoon.",
                 "delegations": [{"agent": "git_agent", "action": "push_to_github", "params": {"folder_path": "."}}]
             }
+
+        # WhatsApp voice / video calling (English & Hinglish).
+        # This must stay ABOVE the messaging block below: that block's "<CONTACT> ko <REST>" rule
+        # would otherwise text the literal words "video call kro" to the contact instead of calling.
+        if any(k in clean for k in [
+            "end call", "end the call", "hang up", "hangup", "cut the call", "cut call",
+            "disconnect the call", "disconnect call", "call kaat do", "call kat do",
+            "call katt do", "call band karo", "call band kro", "call end karo",
+            "call end kro", "phone rakh do", "call rakh do", "call cut kro", "call cut karo"
+        ]):
+            return True, {
+                "thought": "Fast-path triggered: Ending the active WhatsApp call.",
+                "speech_reply": f"Ji {sir}, call end kar raha hoon.",
+                "delegations": [{"agent": "whatsapp_agent", "action": "end_call", "params": {}}]
+            }
+
+        wants_video = bool(re.search(r"\b(?:video\s*[-\s]?\s*call|videocall)\b", clean, re.I))
+        wants_voice = bool(re.search(r"\b(?:voice|audio)\s*[-\s]?\s*call\b|\bvoicecall\b", clean, re.I))
+        hinglish_call = bool(re.search(
+            r"\bcall\s*(?:kro|karo|kardo|kar\s*do|kar\s*de|lagao|laga\s*do|lga\s*do|milao|mila\s*do)\b",
+            clean, re.I
+        ))
+        english_call = bool(re.match(
+            r"^(?:please\s+)?(?:make|place|start|do|give|initiate|dial)?\s*(?:a\s+)?(?:whatsapp\s+)?"
+            r"(?:video|voice|audio)?\s*[-\s]?\s*call\s+(?:to\s+|with\s+)?\S+",
+            clean, re.I
+        ))
+
+        if (wants_video or wants_voice or hinglish_call or english_call) and not any(
+            k in clean for k in ["call history", "call log", "call logs", "recent calls", "missed call", "call a number"]
+        ):
+            contact_name = ""
+            # Hinglish: "<NAME> ko [whatsapp pe] [video] call kro"
+            h_call = re.search(
+                r"^(?:whatsapp\s+(?:pe|par|p)\s+)?(?P<name>.+?)\s+ko\s+(?:whatsapp\s+(?:pe|par|p)\s+)?"
+                r"(?:video|voice|audio)?\s*[-\s]?\s*call\s*"
+                r"(?:kro|karo|kardo|kar\s*do|kar\s*de|lagao|laga\s*do|lga\s*do|milao|mila\s*do|do)?\s*$",
+                clean, re.I
+            )
+            if h_call:
+                contact_name = h_call.group("name")
+            else:
+                # English: "[make a] [whatsapp] [video] call [to] <NAME> [on whatsapp]"
+                e_call = re.search(
+                    r"^(?:please\s+)?(?:make|place|start|do|give|initiate|dial)?\s*(?:a\s+)?(?:whatsapp\s+)?"
+                    r"(?:video|voice|audio)?\s*[-\s]?\s*call\s+(?:to\s+|with\s+)?(?P<name>.+?)"
+                    r"(?:\s+(?:on|in|via|through|using|from)\s+whatsapp)?\s*$",
+                    clean, re.I
+                )
+                if e_call:
+                    contact_name = e_call.group("name")
+
+            if contact_name:
+                contact_name = re.sub(r"^(?:whatsapp\s+(?:pe|par|p)\s+|whatsapp\s+)", "", contact_name, flags=re.I).strip()
+                contact_name = re.sub(r"\s+(?:on|in|via|through|using|from)\s+whatsapp$", "", contact_name, flags=re.I).strip()
+                contact_name = re.sub(r"^(?:to|with)\s+", "", contact_name, flags=re.I).strip()
+                contact_name = re.sub(r"\s+(?:ko|se|pe|par|p)$", "", contact_name, flags=re.I).strip()
+                contact_name = contact_name.strip(" ,.!?\"'")
+
+            reserved = {
+                "me", "him", "her", "them", "us", "you", "back", "again", "later",
+                "someone", "anyone", "number", "a number", "whatsapp",
+            }
+            if contact_name and len(contact_name) >= 2 and contact_name.lower() not in reserved:
+                action = "video_call" if wants_video else "voice_call"
+                kind_en = "video" if wants_video else "voice"
+                kind_hi = "video call" if wants_video else "call"
+                return True, {
+                    "thought": f"Fast-path triggered: Placing a WhatsApp {kind_en} call to '{contact_name}'.",
+                    "speech_reply": f"Ji {sir}, {contact_name.title()} ko WhatsApp {kind_hi} laga raha hoon.",
+                    "delegations": [{
+                        "agent": "whatsapp_agent",
+                        "action": action,
+                        "params": {"contact_name": contact_name}
+                    }]
+                }
 
         # WhatsApp / Messaging launch & message dispatch (English & Hinglish)
         match_msg_h = re.search(r"(?:whatsapp\s+(?:kholo\s+(?:aur|and)\s+|pe\s+|par\s+|p\s+)?)?([a-zA-Z0-9\.\s]+?)\s+ko\s+(?:message|msg)\s+(?:bhejo|karo|send\s+karo)\s+[\"']?([^\"']+)[\"']?", clean)
@@ -428,7 +560,10 @@ class PlannerAgent:
             }
 
         # Check WhatsApp message sending intent FIRST (English & Hinglish)
-        if any(k in clean for k in ["bhejo", "send", "message", "msg", "whatsapp"]):
+        # Guarded against call intents so "mummy ko whatsapp pe video call kro" is never texted.
+        if any(k in clean for k in ["bhejo", "send", "message", "msg", "whatsapp"]) and not (
+            wants_video or wants_voice or hinglish_call
+        ):
             t_clean = user_input
             t_clean = re.sub(r"^(?:jarvis|jarvas|travis)\s*,?\s*", "", t_clean, flags=re.I).strip()
             t_clean = re.sub(r"^(?:open\s+whatsapp\s+(?:and|aur)?\s*|whatsapp\s+(?:kholo|open\s+karo)?\s*(?:aur|and)?\s*|whatsapp\s*)+", "", t_clean, flags=re.I).strip()
@@ -510,13 +645,15 @@ class PlannerAgent:
                     "delegations": [{"agent": "browser_agent", "action": "open_url", "params": {"url": url}}]
                 }
 
-        # System app launches (English & Hinglish: kholo / chalao / open karo)
-        apps = ["chrome", "edge", "vscode", "notepad", "calculator", "calc", "paint", "cmd", "powershell", "settings", "file explorer", "downloads", "documents"]
-        for app in apps:
-            if clean == app or any(p in clean for p in [f"open {app}", f"{app} kholo", f"{app} chalao", f"{app} open karo", f"launch {app}"]):
+        # System app launches (Dynamic regex for open ANY app)
+        app_match = re.match(r"^(?:open|launch|start)\s+(.+?)$|^(.+?)\s+(?:kholo|chalao|open karo|open kro)$", clean)
+        if app_match:
+            app = (app_match.group(1) or app_match.group(2)).strip()
+            # Ignore if it seems like a general conversational phrase rather than an app name
+            if not any(k in app for k in ["how", "what", "where", "why", "who", "when", "can you", "please", "jarvis"]):
                 return True, {
                     "thought": f"Fast-path triggered: Launching {app}.",
-                    "speech_reply": f"Ji Sir, {app.capitalize()} khol raha hoon.",
+                    "speech_reply": f"Ji {sir}, {app.title()} open kar raha hoon.",
                     "delegations": [{"agent": "windows_agent", "action": "launch_app", "params": {"app_name": app}}]
                 }
 
@@ -606,7 +743,12 @@ class PlannerAgent:
 
         # Installed Games Detection (Hinglish & English)
         if any(k in clean for k in ["konsi game install", "kon si game install", "konse game hai", "konsi game hai", "installed games", "games install hai", "scan games", "show games", "games in pc"]):
-            detected_games = self.windows.sys_control.detect_installed_games()
+            # self.windows was never assigned; the attribute lookup raised
+            # AttributeError and the whole request died. Read the agent out of
+            # the same dict every other branch uses.
+            win_agent = self.sub_agents.get("windows_agent")
+            sys_control = win_agent.sys_control if win_agent else SystemControl()
+            detected_games = sys_control.detect_installed_games()
             if detected_games:
                 games_str = ", ".join(detected_games)
                 reply = f"Ji {sir}, aapke PC mein yeh games installed hain: {games_str}. Aap kaunsi game kholna chahenge?"
@@ -648,12 +790,16 @@ class PlannerAgent:
                 if val.lower() not in stop_words:
                     folder_name = val.capitalize()
 
+            # The matcher must not touch the filesystem: it previously called
+            # desktop_path.mkdir() right here, so the folder appeared even when
+            # the permission gate would have refused, and a dry-run intent test
+            # littered the Desktop. It now only *names* the target; create_folder
+            # creates it after the gate.
             desktop_path = Path.home() / "Desktop" / folder_name
-            desktop_path.mkdir(parents=True, exist_ok=True)
             return True, {
                 "thought": f"Fast-path triggered: Explicit Desktop folder creation for '{folder_name}'.",
                 "speech_reply": f"Ji {sir}, Desktop par '{folder_name}' naam se folder bana diya hai!",
-                "delegations": [{"agent": "file_agent", "action": "create_folder", "params": {"folder_path": str(desktop_path)}}]
+                "delegations": [{"agent": "file_agent", "action": "create_folder", "params": {"path": str(desktop_path)}}]
             }
 
         # Category & Daily News Bulletin (Hindi & Hinglish)
@@ -683,16 +829,32 @@ class PlannerAgent:
 
         # n8n Cloud & SaaS Workflow Tool Router Fast-Path
         n8n_keywords = [
-            "n8n", "workflow", "whatsapp", "whatsapp message", "send whatsapp",
-            "github", "github push", "google drive", "gdrive", "upload to drive",
-            "linkedin", "instagram", "youtube upload", "reddit", "excel", "powerpoint", "ppt",
-            "google calendar", "calendar event", "grok", "grok ai", "xai", "ask grok",
-            "gmail", "email", "emails", "mail", "read gmail", "check gmail", "read my gmail", "gmail padho",
-            "read email", "check email", "inbox", "backup folder", "discord alert",
-            "discord notification", "telegram message", "google sheets", "spreadsheet",
-            "slack message", "notion add", "dropbox", "onedrive"
+            "n8n workflow", "run workflow", "whatsapp message", "send whatsapp",
+            "github push", "google drive", "upload to drive",
+            "youtube upload", "calendar event", "grok ai", "ask grok",
+            "read gmail", "check gmail", "read my gmail", "gmail padho",
+            "read email", "check email", "backup folder", "discord alert",
+            "discord notification", "telegram message", "google sheets",
+            "slack message", "notion add"
         ]
-        if any(k in clean for k in n8n_keywords):
+        
+        n8n_single_words = [
+            "n8n", "whatsapp", "github", "gdrive", "linkedin", "instagram", "reddit", 
+            "excel", "powerpoint", "ppt", "gmail", "email", "mail", "inbox", 
+            "spreadsheet", "dropbox", "onedrive"
+        ]
+        
+        is_question = any(q in clean for q in ["how", "what", "why", "where", "who", "when", "kaisi", "kya", "kaise", "kab", "kaha", "kyu", "kyun"])
+        has_action = any(v in clean for v in ["send", "upload", "create", "make", "read", "check", "post", "add", "backup", "run", "execute", "message", "bhejo", "bhej", "karo", "kro", "daalo", "padho", "kholo"])
+
+        trigger_n8n = False
+        if not is_question:
+            if any(k in clean for k in n8n_keywords):
+                trigger_n8n = True
+            elif has_action and any(w in clean.split() for w in n8n_single_words):
+                trigger_n8n = True
+
+        if trigger_n8n:
             return True, {
                 "thought": f"Tool Router classified request '{clean}' -> Category: n8n Workflow. Delegating to n8n_agent.",
                 "speech_reply": f"Ji {sir}, main local n8n engine ke dwara aapki workflow execute kar raha hoon.",
@@ -819,17 +981,196 @@ class PlannerAgent:
 
         return False, {}
 
+    # ------------------------------------------------------------------------
+    # Execution: the single path shared by the fast-path and the LLM planner
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _result_entry(result: ToolResult, agent: str, action: str) -> Dict[str, Any]:
+        """
+        One execution_results row.
+
+        Keeps the historical {"agent", "action", "result"} shape the GUI and the
+        phone UI read, and adds the authoritative ToolResult fields on top.
+        """
+        entry = result.to_dict()
+        entry["agent"] = agent
+        entry["action"] = action
+        return entry
+
+    async def _execute_delegations(
+        self,
+        delegations: List[Dict[str, Any]],
+        session_id: str,
+        user_input: str,
+        speech_reply: str,
+    ) -> Tuple[List[Dict[str, Any]], str, bool]:
+        """
+        Runs a plan's delegations through the tool registry.
+
+        Returns (execution_results, speech_reply, gated). ``gated`` is True when
+        a tool needed confirmation: the question becomes the spoken reply,
+        nothing further is executed, and the held action waits for "haan"/"nahi".
+        """
+        execution_results: List[Dict[str, Any]] = []
+
+        for delegation in delegations or []:
+            agent_name = str(delegation.get("agent", "") or "").strip().lower()
+            action = str(delegation.get("action", "") or "").strip()
+            params = delegation.get("params", {}) or {}
+
+            # "agent": "speech_reply" means the model just wanted to talk.
+            if agent_name in PSEUDO_AGENTS and not action:
+                continue
+
+            spec = self.registry.get(action) or self.registry.resolve_legacy(agent_name, action)
+            if spec is None:
+                if agent_name in PSEUDO_AGENTS:
+                    continue
+                logger.warning(f"No tool for delegation {agent_name}/{action}; skipping.")
+                execution_results.append(self._result_entry(
+                    ToolResult(
+                        ok=False,
+                        tool=action or agent_name,
+                        message=f"Sir, '{action or agent_name}' ke liye koi tool available nahi hai.",
+                    ),
+                    agent_name, action,
+                ))
+                continue
+
+            logger.info(f"Delegation {agent_name}/{action} -> tool '{spec.name}'")
+
+            # The registry applies the permission gate itself: a tool that needs
+            # confirmation and is called without confirmed=True comes back
+            # blocked, having executed nothing.
+            result = await self.registry.execute(spec, params, confirmed=False)
+
+            if result.awaiting_confirmation:
+                pending = self.safety.hold_for_confirmation(
+                    result,
+                    session_id=session_id,
+                    original_input=user_input,
+                    on_confirm_reply=speech_reply,
+                )
+                execution_results.append(self._result_entry(result, agent_name, action))
+                logger.info(
+                    f"Holding '{pending.tool}' for confirmation; "
+                    f"{len(delegations) - len(execution_results)} later delegation(s) not attempted."
+                )
+                return execution_results, pending.question, True
+
+            if result.speech_reply:
+                speech_reply = result.speech_reply
+            execution_results.append(self._result_entry(result, agent_name, action))
+
+        return execution_results, speech_reply, False
+
+    async def _handle_confirmation_reply(
+        self, user_input: str, session_id: str
+    ) -> Tuple[bool, Dict[str, Any]]:
+        """
+        Interprets an utterance while an action is held for approval.
+
+        Returns (handled, response). ``handled`` is False for a reply that is
+        neither yes nor no -- the pending action is dropped without running and
+        the caller processes the input as a brand-new request.
+        """
+        decision, pending = self.safety.resolve_reply(user_input, session_id)
+
+        if decision is ConfirmationDecision.NONE or pending is None:
+            return False, {}
+
+        if decision is ConfirmationDecision.UNRELATED:
+            logger.info(f"'{pending.tool}' dropped unexecuted; input is a new request.")
+            return False, {}
+
+        if decision is ConfirmationDecision.EXPIRED:
+            reply = self.safety.expiry_reply(pending)
+            return True, self._finalize(
+                session_id, user_input, reply,
+                thought=f"Confirmation for '{pending.tool}' expired; nothing executed.",
+                execution_results=[],
+            )
+
+        if decision is ConfirmationDecision.DENY:
+            reply = self.safety.cancellation_reply(pending)
+            return True, self._finalize(
+                session_id, user_input, reply,
+                thought=f"User declined '{pending.tool}'; nothing executed.",
+                execution_results=[],
+            )
+
+        # AFFIRM -- and only now does the held action actually run.
+        logger.info(f"Confirmed '{pending.tool}'; executing with confirmed=True.")
+        result = await self.registry.execute(pending.tool, pending.params, confirmed=True)
+        spec = self.registry.get(pending.tool)
+        entry = self._result_entry(
+            result,
+            getattr(spec, "agent", "") or "",
+            getattr(spec, "action", "") or pending.tool,
+        )
+
+        if result.speech_reply:
+            reply = result.speech_reply
+        elif result.ok:
+            reply = pending.on_confirm_reply or "Ji Sir, ho gaya."
+        else:
+            reply = result.message or f"Sir, '{pending.tool}' complete nahi ho paya."
+
+        return True, self._finalize(
+            session_id, user_input, reply,
+            thought=f"User confirmed '{pending.tool}'; executed after approval.",
+            execution_results=[entry],
+        )
+
+    def _finalize(
+        self,
+        session_id: str,
+        user_input: str,
+        speech_reply: str,
+        thought: str,
+        execution_results: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Cleans the spoken reply, records the turn, and shapes the response."""
+        if speech_reply:
+            speech_reply = re.sub(r"```(?:json)?[\s\S]*?```", "", speech_reply).strip()
+            speech_reply = re.sub(r"[\{\}\[\]\\]", "", speech_reply).strip()
+            speech_reply = speech_reply.strip('"').strip("'").strip()
+
+        self.memory.record_turn(session_id, "user", user_input)
+        self.memory.record_turn(session_id, "assistant", speech_reply, thought=thought)
+
+        return {
+            "thought": thought,
+            "speech_reply": speech_reply,
+            "execution_results": execution_results,
+        }
+
     async def process_user_request(self, user_input: str, session_id: str = "default", image_path: Optional[str] = None) -> Dict[str, Any]:
-        """Main entry point: processes user prompt, delegates to sub-agents, and produces response."""
+        """Main entry point: turns a prompt into tool calls and a spoken reply."""
         logger.info(f"Processing user input: '{user_input}' (Image: {image_path})")
+
+        # 0. A held action outranks everything: "haan" must approve the shutdown,
+        #    not be re-parsed as a fresh command. include_expired=True because a
+        #    late answer still deserves a straight answer -- the broker decides
+        #    whether the window had closed, and an utterance that was not an
+        #    answer at all falls through to normal handling below.
+        if self.safety.has_pending(session_id, include_expired=True):
+            handled, response = await self._handle_confirmation_reply(user_input, session_id)
+            if handled:
+                return response
+
+        thought = ""
+        cleaned_response = ""
 
         # Check fast-path direct command matching
         is_fast, fast_result = self._fast_path_match(user_input, image_path=image_path)
         if is_fast:
             thought = fast_result["thought"]
-            speech_reply = fast_result["speech_reply"]
-            delegations = fast_result["delegations"]
-            parsed_plan = {"thought": thought, "speech_reply": speech_reply, "delegations": delegations}
+            parsed_plan = {
+                "thought": thought,
+                "speech_reply": fast_result["speech_reply"],
+                "delegations": fast_result["delegations"],
+            }
         else:
             # 1. Retrieve RAG memory & user facts
             all_facts = self.memory.get_all_facts()
@@ -857,93 +1198,55 @@ User Request: "{user_input}"
             # 3. Call Local LLM for CoT Planning & Delegation Schema
             raw_response = await self.llm.generate_response(
                 prompt=full_prompt,
-                system_prompt=PLANNER_AGENT_PROMPT,
+                system_prompt=self.planner_prompt,
                 temperature=0.3
             )
 
             thought, cleaned_response = strip_thought_tags(raw_response)
             parsed_plan = parse_json_safely(cleaned_response)
 
-        execution_results = []
-        speech_reply = ""
+        execution_results: List[Dict[str, Any]] = []
 
         if parsed_plan and "delegations" in parsed_plan:
-            thought = parsed_plan.get("thought", thought if 'thought' in locals() else "")
+            thought = parsed_plan.get("thought", thought)
             speech_reply = parsed_plan.get("speech_reply", "")
-            delegations = parsed_plan.get("delegations", [])
 
-            # 4. Execute Sub-Agent Tasks
-            for delegation in delegations:
-                target_agent_name = delegation.get("agent", "").lower()
-                action = delegation.get("action", "")
-                params = delegation.get("params", {})
+            # 4. Execute through the registry (permissions, confirmation, results)
+            execution_results, speech_reply, gated = await self._execute_delegations(
+                parsed_plan.get("delegations", []),
+                session_id=session_id,
+                user_input=user_input,
+                speech_reply=speech_reply,
+            )
 
-                logger.info(f"Delegating task to '{target_agent_name}' -> Action: '{action}'")
+            if gated:
+                # Nothing ran. Ask, and say nothing that implies it already did.
+                return self._finalize(
+                    session_id, user_input, speech_reply,
+                    thought=f"{thought}\n[Safety]: Awaiting user confirmation; nothing executed.",
+                    execution_results=execution_results,
+                )
 
-                # Safety Check Interceptor
-                if not self.safety.check_and_confirm(action, params):
-                    execution_results.append({
-                        "agent": target_agent_name,
-                        "action": action,
-                        "status": "security_rejected",
-                        "message": "User denied authorization for dangerous command."
-                    })
-                    continue
-
-                # Ignore pseudo-agents generated by LLM (like speech_reply or none)
-                if target_agent_name in ["speech_reply", "speech", "reply", "none", "llm", "user", "assistant", ""]:
-                    continue
-
-                if target_agent_name in self.sub_agents:
-                    sub_agent = self.sub_agents[target_agent_name]
-                    res = await sub_agent.execute_task(action, params)
-                    if isinstance(res, dict) and res.get("speech_reply"):
-                        speech_reply = res["speech_reply"]
-                    execution_results.append({
-                        "agent": target_agent_name,
-                        "action": action,
-                        "result": res
-                    })
-                else:
-                    execution_results.append({
-                        "agent": target_agent_name,
-                        "status": "error",
-                        "message": f"Sub-agent '{target_agent_name}' not found."
-                    })
-
-            # Check if any sub-task failed or got stuck, and ask the user for guidance
-            failures = []
-            for item in execution_results:
-                status = item.get("status", "")
-                res = item.get("result", {})
-                if status == "security_rejected":
-                    failures.append(f"Security interceptor blocked '{item.get('action')}'")
-                elif status == "error":
-                    failures.append(item.get("message", "Sub-agent error"))
-                elif isinstance(res, dict) and res.get("success") is False:
-                    failures.append(res.get("message", "Task execution failed"))
+            # 5. Report failures honestly. This loop used to read res["success"],
+            #    a key the sub-agents never set -- so {"status": "error"} was
+            #    announced as a success. ToolResult.ok is now authoritative.
+            failures = [
+                item.get("message") or f"'{item.get('tool')}' failed"
+                for item in execution_results
+                if not item.get("ok") and not item.get("awaiting_confirmation")
+            ]
 
             if failures:
                 error_summary = "; ".join(failures)
-                thought = f"{thought}\n[System Feedback]: Task encountered an issue ({error_summary}). Asking user for clarification."
-                speech_reply = f"Sir, I encountered an issue: {error_summary}. How would you like me to handle this?"
-
+                thought = f"{thought}\n[System Feedback]: Task encountered an issue ({error_summary})."
+                speech_reply = f"Sir, ek problem aa gayi: {error_summary} Aap kaise handle karna chahenge?"
         else:
             # Direct natural speech answer if no JSON action requested
-            speech_reply = cleaned_response if 'cleaned_response' in locals() else "I apologize, Sir. I am unsure how to complete that request. Could you please clarify?"
+            speech_reply = cleaned_response or (
+                "I apologize, Sir. I am unsure how to complete that request. "
+                "Could you please clarify?"
+            )
 
-        # Clean speech_reply from any leftover JSON code blocks or raw formatting
-        if speech_reply:
-            speech_reply = re.sub(r"```(?:json)?[\s\S]*?```", "", speech_reply).strip()
-            speech_reply = re.sub(r"[\{\}\[\]\\]", "", speech_reply).strip()
-            speech_reply = speech_reply.strip('"').strip("'").strip()
-
-        # 5. Record Turn into Memory
-        self.memory.record_turn(session_id, "user", user_input)
-        self.memory.record_turn(session_id, "assistant", speech_reply, thought=thought if 'thought' in locals() else "")
-
-        return {
-            "thought": thought if 'thought' in locals() else "",
-            "speech_reply": speech_reply,
-            "execution_results": execution_results
-        }
+        return self._finalize(
+            session_id, user_input, speech_reply, thought, execution_results
+        )

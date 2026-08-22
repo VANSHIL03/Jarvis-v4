@@ -62,6 +62,7 @@ class MemoryCategory(str, Enum):
 
 
 #: category -> (persisted, ttl_days, requires_explicit_request, mask_when_shown)
+#: SHORT_TERM's 7 is the fallback only; settings.MEMORY_SHORT_TERM_TTL_DAYS wins.
 _RULES: Dict[MemoryCategory, tuple] = {
     MemoryCategory.EPHEMERAL:     (False, None, False, False),
     MemoryCategory.SHORT_TERM:    (True,     7, False, False),
@@ -82,8 +83,35 @@ def is_persisted(category: MemoryCategory) -> bool:
 
 
 def ttl_days(category: MemoryCategory) -> Optional[int]:
-    """Days before the memory expires, or None to keep it indefinitely."""
+    """
+    Days before the memory expires, or None to keep it indefinitely.
+
+    SHORT_TERM is read from settings each call rather than baked into _RULES, so
+    a user who wants "kuch dino ki baatein" to mean 3 days or 30 can change one
+    config value instead of editing this table. A non-positive value is ignored
+    rather than treated as "expire immediately".
+    """
+    if category is MemoryCategory.SHORT_TERM:
+        configured = _configured_short_term_ttl()
+        if configured is not None:
+            return configured
     return _RULES[category][1]
+
+
+def _configured_short_term_ttl() -> Optional[int]:
+    """settings.MEMORY_SHORT_TERM_TTL_DAYS, or None when unset/unusable."""
+    try:
+        from config.settings import settings
+
+        raw = getattr(settings, "MEMORY_SHORT_TERM_TTL_DAYS", None)
+        if raw is None:
+            return None
+        days = int(raw)
+        return days if days > 0 else None
+    except Exception:
+        # Categories must keep working even if settings cannot be imported
+        # (the unit tests import this module in isolation).
+        return None
 
 
 def requires_explicit_request(category: MemoryCategory) -> bool:

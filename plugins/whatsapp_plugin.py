@@ -6,6 +6,7 @@ import time
 import subprocess
 from typing import Dict, Any, List
 from plugins.base_plugin import BasePlugin
+from automation.whatsapp_call import WhatsAppCallController
 from utils.logger import logger
 
 try:
@@ -24,7 +25,17 @@ class WhatsAppPlugin(BasePlugin):
         return "Automates WhatsApp Desktop UI for sending text, files, documents, and voice messages."
 
     def get_supported_commands(self) -> List[str]:
-        return ["open_whatsapp", "send_message", "read_unread", "send_file", "send_voice_note"]
+        return [
+            "open_whatsapp", "send_message", "read_unread", "send_file", "send_voice_note",
+            "video_call", "voice_call", "end_call", "find_contact"
+        ]
+
+    @property
+    def call_controller(self) -> WhatsAppCallController:
+        """Lazily builds the UI Automation call controller."""
+        if getattr(self, "_call_controller", None) is None:
+            self._call_controller = WhatsAppCallController()
+        return self._call_controller
 
     def execute(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
         action = action.lower()
@@ -40,6 +51,14 @@ class WhatsAppPlugin(BasePlugin):
             contact = params.get("contact_name") or params.get("contact", "")
             file_path = params.get("file_path", "")
             return self._send_file(contact, file_path)
+        elif action in ("video_call", "voice_call"):
+            contact = params.get("contact_name") or params.get("contact", "")
+            return self.call_controller.place_call(contact, video=(action == "video_call"))
+        elif action == "end_call":
+            return self.call_controller.end_call()
+        elif action == "find_contact":
+            contact = params.get("contact_name") or params.get("contact", "")
+            return self.call_controller.resolve_contact(contact)
         else:
             return {"status": "error", "message": f"Unsupported action: '{action}'"}
 

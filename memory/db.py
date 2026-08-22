@@ -336,5 +336,13 @@ class DatabaseManager:
             return bool(row and row["n"] == 1)
 
     def close(self):
-        """Closes any active database resources."""
-        pass
+        """
+        No-op: this class holds no long-lived handle.
+
+        Every operation opens its own connection through ``_get_connection()``
+        inside a ``with`` block, so there is nothing to release here. The method
+        exists because callers (and MemoryManager) reasonably expect a close()
+        on anything database-shaped, and it stays a safe call if the connection
+        strategy ever changes.
+        """
+        return None

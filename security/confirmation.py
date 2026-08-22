@@ -253,7 +253,20 @@ class ConfirmationBroker:
         return pending
 
     # -------------------------------------------------------------- state
-    def has_pending(self, session_id: str = "default") -> bool:
+    def has_pending(
+        self, session_id: str = "default", include_expired: bool = False
+    ) -> bool:
+        """
+        Whether this session is waiting on an answer.
+
+        ``include_expired`` exists for one caller: the planner, which must route
+        the next utterance through :meth:`resolve` even when the record has timed
+        out. Otherwise reading this purges the stale entry (see :meth:`peek`) and
+        a late "haan" gets re-parsed as a brand-new command, so the user is never
+        told that the action they just approved is not going to happen.
+        """
+        if include_expired:
+            return session_id in self._pending
         return self.peek(session_id) is not None
 
     def peek(self, session_id: str = "default") -> Optional[PendingConfirmation]:
@@ -290,12 +303,26 @@ class ConfirmationBroker:
         if raw is None:
             return ConfirmationDecision.NONE, None
 
-        if raw.is_expired():
-            self._pending.pop(session_id, None)
-            logger.info(f"Confirmation for '{raw.tool}' expired; nothing executed.")
-            return ConfirmationDecision.EXPIRED, raw
-
         decision = classify_reply(user_input)
+
+        if raw.is_expired():
+            # Too late either way -- an expired action never runs. But *saying* so
+            # is only right when the utterance was actually an answer to the
+            # question. "haan" ten minutes on deserves "Sir, woh timeout ho gaya";
+            # "notepad kholo" deserves a Notepad, not an explanation about a
+            # shutdown the user has already forgotten proposing.
+            self._pending.pop(session_id, None)
+            if decision in (ConfirmationDecision.AFFIRM, ConfirmationDecision.DENY):
+                logger.info(
+                    f"Answer to '{raw.tool}' arrived after its {raw.ttl:.0f}s "
+                    "window; nothing executed."
+                )
+                return ConfirmationDecision.EXPIRED, raw
+            logger.info(
+                f"'{raw.tool}' had already expired; dropped it and treating the "
+                "input as a new request."
+            )
+            return ConfirmationDecision.UNRELATED, raw
 
         if decision is ConfirmationDecision.AFFIRM:
             self._pending.pop(session_id, None)

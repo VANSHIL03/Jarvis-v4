@@ -19,5 +19,8 @@ logs/
 data/
 scratch/
 
-# Test scripts
-test_*.py
+# Ad-hoc test scripts dropped in the repo root. Anchored with a leading slash so
+# it stops swallowing the real suite in tests/ -- an unanchored test_*.py matched
+# at every depth, which silently excluded every file in tests/ from version
+# control.
+/test_*.py

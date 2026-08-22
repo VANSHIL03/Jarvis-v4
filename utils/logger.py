@@ -19,6 +19,8 @@ def setup_logger(name: str = "JARVIS") -> logging.Logger:
         return logger
 
     # Console Handler
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)
     console_format = logging.Formatter(

@@ -8,8 +8,15 @@ Two hard rules from the specification are enforced here, in one place:
   * Section 27 -- never log passwords, tokens or sensitive secrets.
 
 MemoryManager consults this before anything reaches SQLite or the FAISS vector
-store, and utils.logger installs RedactingFilter so a secret that appears in a
-log message is masked on its way to disk.
+store, so a credential spoken in passing is masked in both.
+
+Section 27's logging half is NOT yet wired: utils/logger.py has no RedactingFilter,
+so a secret interpolated into a log message still reaches logs/jarvis.log verbatim.
+The obvious fix is circular -- utils.logger is imported by nearly everything, and
+`memory/__init__.py` eagerly imports MemoryManager, so importing this module from
+the logger would both cycle and pull an ~8s sentence-transformer load into every
+`import utils.logger`. Closing it means making the memory package import lazily
+first. Until then, callers must not interpolate raw user text into log messages.
 
 Card numbers are Luhn-checked rather than matched on length alone, so a 16-digit
 order ID is not mistaken for a payment card.
@@ -113,8 +120,14 @@ class SecretMatch:
 
 
 #: Credential keywords, shared by the three sentence shapes below.
+#: Order matters: the longest phrasing must come first, or the bare `secret`
+#: alternative wins and the capture group grabs the next *word* instead of the
+#: value. That is how "aws secret access key wJal..." went undetected -- `secret`
+#: matched, the value captured was "access", and the validator correctly rejected
+#: it as prose, so the real key sailed through.
 _SECRET_WORDS = (
     r"(?:pass\s*word|password|passwd|pwd|passcode|paasword"
+    r"|secret[\s_-]?access[\s_-]?key|access[\s_-]?key[\s_-]?id|access[\s_-]?key"
     r"|api[\s_-]?key|secret[\s_-]?key|access[\s_-]?token|auth[\s_-]?token"
     r"|refresh[\s_-]?token|client[\s_-]?secret|private[\s_-]?key"
     r"|licence[\s_-]?key|license[\s_-]?key|app[\s_-]?secret|secret)"
