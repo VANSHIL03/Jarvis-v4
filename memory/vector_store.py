@@ -5,7 +5,7 @@ JARVIS v4 - Vector Store for Semantic Memory Retrieval (RAG)
 import os
 import pickle
 import numpy as np
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 from config.settings import settings
 from utils.logger import logger
 
@@ -59,6 +59,83 @@ class VectorStore:
         self.embeddings.append(emb)
         self.documents.append({"text": text, "metadata": metadata or {}})
         self.save()
+
+    def count(self) -> int:
+        """Number of indexed documents."""
+        return len(self.documents)
+
+    def delete_where(self, predicate: Callable[[Dict[str, Any]], bool]) -> List[Dict[str, Any]]:
+        """
+        Removes every document for which `predicate(document)` is True.
+
+        Deletion has to exist for "forget this" to be honest: without it the
+        SQLite row would go while the embedding stayed searchable, so JARVIS
+        would still recall something it said it had forgotten. It is a plain list
+        plus a pickle here -- the FAISS index is rebuilt on each search -- so
+        removal is filtering followed by a save, with the embeddings kept in
+        lockstep with the documents.
+        """
+        if not self.documents:
+            return []
+
+        keep_docs: List[Dict[str, Any]] = []
+        keep_embs: List[np.ndarray] = []
+        removed: List[Dict[str, Any]] = []
+
+        for index, document in enumerate(self.documents):
+            try:
+                doomed = bool(predicate(document))
+            except Exception as e:
+                logger.warning(f"Vector store delete predicate failed on item {index}: {e}")
+                doomed = False
+
+            if doomed:
+                removed.append(document)
+            else:
+                keep_docs.append(document)
+                if index < len(self.embeddings):
+                    keep_embs.append(self.embeddings[index])
+
+        if removed:
+            self.documents = keep_docs
+            self.embeddings = keep_embs
+            self.save()
+            logger.info(f"Removed {len(removed)} item(s) from vector memory.")
+        return removed
+
+    def delete_by_metadata(self, **filters: Any) -> List[Dict[str, Any]]:
+        """Removes documents whose metadata matches every given key/value."""
+        if not filters:
+            return []
+
+        def matches(document: Dict[str, Any]) -> bool:
+            metadata = document.get("metadata") or {}
+            return all(metadata.get(key) == value for key, value in filters.items())
+
+        return self.delete_where(matches)
+
+    def delete_matching_text(self, query: str, case_sensitive: bool = False) -> List[Dict[str, Any]]:
+        """Removes documents whose text mentions `query` (for 'forget about X')."""
+        needle = (query or "").strip()
+        if not needle:
+            return []
+        if not case_sensitive:
+            needle = needle.lower()
+
+        def matches(document: Dict[str, Any]) -> bool:
+            text = str(document.get("text", ""))
+            return needle in (text if case_sensitive else text.lower())
+
+        return self.delete_where(matches)
+
+    def clear(self) -> int:
+        """Empties the whole store. Returns how many items were dropped."""
+        removed = len(self.documents)
+        self.documents = []
+        self.embeddings = []
+        self.save()
+        logger.info(f"Vector memory cleared ({removed} item(s)).")
+        return removed
 
     def search(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
         """Searches vector index for semantic similarity matching query."""
